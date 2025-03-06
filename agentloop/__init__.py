@@ -9,11 +9,8 @@ from .agentloop import (
     create_assistant,
     start_session,
     process_message,
-    get_history,
-    set_history,
-    add_messages,
     get_memory,
-    update_memory
+    update_memory,
 )
 
 __version__ = "0.1.0"

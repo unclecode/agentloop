@@ -686,3 +686,13 @@ For "Plan a trip to Paris":
 1. Memory retrieves "prefers metric units."
 2. OpenAI calls `get_weather`, then suggests more tools.
 3. Loops until complete, updates memory with "planning trip to Paris."
+
+
+
+
+Focusing on processed message functions, I found one significant issue. The current code only allows for one    │
+│   cycle iteration of calling and searching for tools. When the user sends a message, if the AI responds, we call  │
+│   the tool functions, but then we assume that's the end after the second call. We receive the response and        │
+│   return it. However, what if the AI responds again, indicating the need for additional tool calls? We need a     │
+│   loop that waits until the AI's response does not require any further tool calls. That's one very important      │
+│   point.  

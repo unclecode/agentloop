@@ -68,3 +68,7 @@ ENV/
 *.db
 
 CLAUDE.md
+
+moji/
+
+.mem4ai*

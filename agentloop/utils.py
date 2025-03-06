@@ -102,6 +102,7 @@ def get_function_schema(func: Callable) -> Dict[str, Any]:
 def create_db_tables(db_path: str):
     """
     Create necessary tables in the SQLite database.
+    Also handles schema migration from older versions.
     
     Args:
         db_path: Path to the SQLite database
@@ -109,33 +110,72 @@ def create_db_tables(db_path: str):
     conn = sqlite3.connect(db_path)
     cursor = conn.cursor()
     
-    # Create sessions table
-    cursor.execute('''
-    CREATE TABLE IF NOT EXISTS sessions (
-        session_id TEXT PRIMARY KEY,
-        assistant TEXT,
-        history TEXT,
-        created_at TEXT,
-        updated_at TEXT
-    )
-    ''')
+    # Check if sessions table exists
+    cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='sessions'")
+    table_exists = cursor.fetchone() is not None
+    
+    if not table_exists:
+        # Create new sessions table with current schema
+        cursor.execute('''
+        CREATE TABLE sessions (
+            session_id TEXT PRIMARY KEY,
+            history TEXT,
+            metadata TEXT,
+            created_at TEXT,
+            updated_at TEXT
+        )
+        ''')
+    else:
+        # Table exists, check if it needs migration
+        cursor.execute("PRAGMA table_info(sessions)")
+        columns = [info[1] for info in cursor.fetchall()]
+        
+        # Check if old schema (with 'assistant' column)
+        if 'assistant' in columns and 'metadata' not in columns:
+            print("Migrating database schema...")
+            # Create a backup of the old table
+            cursor.execute("ALTER TABLE sessions RENAME TO sessions_old")
+            
+            # Create new table with updated schema
+            cursor.execute('''
+            CREATE TABLE sessions (
+                session_id TEXT PRIMARY KEY,
+                history TEXT,
+                metadata TEXT,
+                created_at TEXT,
+                updated_at TEXT
+            )
+            ''')
+            
+            # Copy data from old table to new table
+            cursor.execute('''
+            INSERT INTO sessions (session_id, history, metadata, created_at, updated_at)
+            SELECT session_id, history, '{}', created_at, updated_at FROM sessions_old
+            ''')
+            
+            # Drop the old table
+            cursor.execute("DROP TABLE sessions_old")
     
     conn.commit()
     conn.close()
 
 
-def save_session(db_path: str, session_id: str, assistant: Dict[str, Any], history: List[Dict[str, Any]]):
+def save_session(db_path: str, session_id: str, history: List[Dict[str, Any]], metadata: Dict[str, Any] = None):
     """
-    Save a session to the database.
+    Save a session to the database. Only stores session history and metadata.
+    Does not store the assistant configuration with function references.
     
     Args:
         db_path: Path to the SQLite database
         session_id: Unique identifier for the session
-        assistant: Assistant configuration
         history: Conversation history
+        metadata: Additional session metadata (optional)
     """
     import datetime
     now = datetime.datetime.now().isoformat()
+    
+    # Use empty dict if no metadata provided
+    metadata = metadata or {}
     
     conn = sqlite3.connect(db_path)
     cursor = conn.cursor()
@@ -145,14 +185,14 @@ def save_session(db_path: str, session_id: str, assistant: Dict[str, Any], histo
     if cursor.fetchone():
         # Update existing session
         cursor.execute(
-            "UPDATE sessions SET assistant = ?, history = ?, updated_at = ? WHERE session_id = ?",
-            (json.dumps(assistant), json.dumps(history), now, session_id)
+            "UPDATE sessions SET history = ?, metadata = ?, updated_at = ? WHERE session_id = ?",
+            (json.dumps(history), json.dumps(metadata), now, session_id)
         )
     else:
         # Insert new session
         cursor.execute(
             "INSERT INTO sessions VALUES (?, ?, ?, ?, ?)",
-            (session_id, json.dumps(assistant), json.dumps(history), now, now)
+            (session_id, json.dumps(history), json.dumps(metadata), now, now)
         )
     
     conn.commit()
@@ -181,8 +221,8 @@ def load_session(db_path: str, session_id: str) -> Optional[Dict[str, Any]]:
     if result:
         return {
             "session_id": result[0],
-            "assistant": json.loads(result[1]),
-            "history": json.loads(result[2]),
+            "history": json.loads(result[1]),
+            "metadata": json.loads(result[2]),
             "created_at": result[3],
             "updated_at": result[4]
         }
@@ -221,6 +261,26 @@ def get_db_path() -> str:
     """Get the path to the SQLite database."""
     agentloop_dir = ensure_db_dir_exists()
     return os.path.join(agentloop_dir, "agentloop.db")
+
+
+def reset_database():
+    """
+    Reset the database by deleting and recreating it.
+    This is useful for testing or when schema changes are problematic.
+    """
+    db_path = get_db_path()
+    try:
+        # Remove the database file if it exists
+        if os.path.exists(db_path):
+            os.remove(db_path)
+            print(f"Database reset: {db_path}")
+        
+        # Create fresh tables
+        create_db_tables(db_path)
+        return True
+    except Exception as e:
+        print(f"Error resetting database: {str(e)}")
+        return False
 
 
 def render_template(template_string: str, context: Dict[str, Any]) -> str:

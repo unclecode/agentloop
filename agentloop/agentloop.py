@@ -8,11 +8,28 @@ import json
 import inspect
 import datetime
 from typing import List, Dict, Any, Optional, Callable, Union
-import openai
+
 
 from . import utils
-from . import memory
-from mem4ai import Memtor
+from .mem4ai import Mem4AI  # Import the memory implementation directly
+
+# Define memory reset function
+def reset_memory():
+    """
+    Reset the memory database by deleting and recreating it.
+    This is useful for testing or clearing all conversations.
+    """
+    home_dir = os.path.expanduser("~")
+    memory_db_path = os.path.join(home_dir, ".agentloop", "memory.db")
+    try:
+        # Remove the database file if it exists
+        if os.path.exists(memory_db_path):
+            os.remove(memory_db_path)
+            print(f"Memory database reset: {memory_db_path}")
+        return True
+    except Exception as e:
+        print(f"Error resetting memory database: {str(e)}")
+        return False
 
 
 def create_assistant(
@@ -81,35 +98,29 @@ def start_session(assistant: Dict[str, Any], session_id: str) -> Dict[str, Any]:
         session_id: Unique identifier for the session
         
     Returns:
-        Session dictionary with assistant, history, and memory
+        Session dictionary with assistant and memory
     """
-    db_path = utils.get_db_path()
-    utils.create_db_tables(db_path)
+    # Create new session with just essential information
+    session = {
+        "session_id": session_id,
+        "assistant": assistant,
+        "created_at": datetime.datetime.now().isoformat(),
+        "updated_at": datetime.datetime.now().isoformat(),
+        "metadata": {}
+    }
     
-    # Try to load existing session
-    existing_session = utils.load_session(db_path, session_id)
+    # Initialize memory for this session with the session ID
+    # Create path to memory database
+    home_dir = os.path.expanduser("~")
+    memory_db_path = os.path.join(home_dir, ".agentloop", "memory.db")
     
-    if existing_session:
-        # Session exists, use it
-        session = existing_session
-        # Update assistant config in case it changed
-        session["assistant"] = assistant
-    else:
-        # Create new session
-        session = {
-            "session_id": session_id,
-            "assistant": assistant,
-            "history": [],
-            "created_at": datetime.datetime.now().isoformat(),
-            "updated_at": datetime.datetime.now().isoformat()
-        }
+    # Ensure directory exists
+    os.makedirs(os.path.dirname(memory_db_path), exist_ok=True)
     
-    # Initialize memory for this session
-    memtor = memory.get_memory_manager()
-    session["memory"] = memtor
-    
-    # Save session to database
-    utils.save_session(db_path, session_id, assistant, session.get("history", []))
+    # Initialize Mem4AI directly
+    mem = Mem4AI(memory_db_path)
+    mem.load(user_id=session_id)
+    session["memory"] = mem
     
     return session
 
@@ -138,8 +149,9 @@ def process_message(
     Returns:
         Dictionary with response and usage statistics
     """
+    import openai
+    
     assistant = session["assistant"]
-    history = session.get("history", [])
     memtor = session.get("memory")
     
     # Format user message
@@ -156,37 +168,61 @@ def process_message(
         # Handle vision or complex message format
         message_content = {"role": "user", "content": formatted_message}
     
-    # Search memory for relevant context
-    relevant_memories = []
-    if memtor and isinstance(message, str):
-        query = message
-        memories = memory.search_memories(memtor, query, session["session_id"])
-        if memories:
-            memory_text = "\n\n".join([mem.content for mem in memories])
-            relevant_memories = [{"role": "system", "content": f"Relevant context from memory: {memory_text}"}]
+    # Get memory context (both short-term and middle-term)
+    short_term_context = []
+    middle_term_context = []
     
-    # Prepare messages for API call
+    if memtor and isinstance(message, str):
+        # Get context directly from Mem4AI with updated structure
+        query = message
+        max_tokens = 2000  # Default limit
+        memory_contexts = memtor.build_context(query, max_tokens)
+        
+        # Process short-term memory
+        for mem in memory_contexts.get("short_term", []):
+            if mem['role'] in ['user', 'assistant']:
+                # Keep only role and content for API compatibility
+                short_term_context.append({
+                    "role": mem['role'], 
+                    "content": mem['content']
+                })
+        
+        # Process middle-term memory
+        for mem in memory_contexts.get("middle_term", []):
+            if mem['role'] in ['user', 'assistant']:
+                # Keep only role and content for API compatibility
+                middle_term_context.append({
+                    "role": mem['role'], 
+                    "content": mem['content']
+                })
+    
+    # Prepare messages for API call using the requested pipeline format:
+    # [system message, ...middle term, ...context, ...short term, recent user message]
     messages = []
     
-    # Add system message if specified
+    # 1. Add system message if specified (first in the pipeline)
     if assistant.get("system_message"):
         messages.append({"role": "system", "content": assistant["system_message"]})
     
-    # Add memory context if available
-    if relevant_memories:
-        messages.extend(relevant_memories)
+    # 2. Add middle-term memory context
+    if middle_term_context:
+        messages.extend(middle_term_context)
     
-    # Add additional context if provided
+    # 3. Add additional context if provided (between middle-term and short-term)
     if context:
         if isinstance(context, str):
             messages.append({"role": "system", "content": context})
         elif isinstance(context, list):
-            messages.extend(context)
+            # Ensure context messages only have role and content
+            for msg in context:
+                if 'role' in msg and 'content' in msg:
+                    messages.append({"role": msg['role'], "content": msg['content']})
     
-    # Add conversation history
-    messages.extend(history)
+    # 4. Add short-term memory context
+    if short_term_context:
+        messages.extend(short_term_context)
     
-    # Add user message
+    # 5. Add user message (last in the pipeline)
     messages.append(message_content)
     
     # Prepare API parameters
@@ -212,21 +248,31 @@ def process_message(
     # Make API call to OpenAI
     response = openai.chat.completions.create(**api_params)
     
-    # Extract response content
+    # Extract initial response content
     assistant_message = response.choices[0].message
     
-    # Handle tool calls if present
-    if hasattr(assistant_message, 'tool_calls') and assistant_message.tool_calls:
-        tool_history = []
+    # Handle tool calls in a loop until no more tool calls are needed
+    max_tool_iterations = 5  # Safety limit to prevent infinite loops
+    current_iteration = 0
+    tool_conversation = []  # Track the entire tool conversation
+    
+    while (hasattr(assistant_message, 'tool_calls') and 
+           assistant_message.tool_calls and 
+           current_iteration < max_tool_iterations):
         
-        # Add assistant message with tool calls to history
-        tool_history.append({
+        current_iteration += 1
+        tool_messages = []
+        
+        # Add assistant message with tool calls to temporary conversation
+        assistant_tool_message = {
             "role": "assistant",
             "content": assistant_message.content,
             "tool_calls": [tool_call.model_dump() for tool_call in assistant_message.tool_calls]
-        })
+        }
+        tool_messages.append(assistant_tool_message)
+        tool_conversation.append(assistant_tool_message)
         
-        # Process tool calls (up to 5 iterations to prevent infinite loops)
+        # Process tool calls
         tool_responses = []
         tool_map = assistant.get("tool_map", {})
         
@@ -245,35 +291,59 @@ def process_message(
             else:
                 result = f"Error: Function {function_name} not found"
             
-            # Add tool response to history
-            tool_responses.append({
+            # Add tool response
+            tool_response = {
                 "tool_call_id": tool_call.id,
                 "role": "tool",
                 "name": function_name,
                 "content": result
-            })
+            }
+            tool_responses.append(tool_response)
+            
+            # Store tool interaction in memory if memory is available
+            if memtor:
+                # Store function call and result in memory with metadata
+                tool_metadata = {
+                    "type": "tool_call",
+                    "timestamp": datetime.datetime.now().isoformat(),
+                    "function_name": function_name,
+                    "iteration": current_iteration
+                }
+                memtor.add_memory(
+                    f"Function call: {function_name} with args: {function_args}", 
+                    "assistant", 
+                    tool_metadata
+                )
+                memtor.add_memory(
+                    f"Function result: {result}", 
+                    "tool", 
+                    tool_metadata
+                )
         
-        # Add tool responses to history
-        tool_history.extend(tool_responses)
+        # Add tool responses to current iteration conversation
+        tool_messages.extend(tool_responses)
+        tool_conversation.extend(tool_responses)
         
-        # Make second API call with tool results
-        api_params["messages"] = messages + tool_history
+        # Make another API call with all tool results so far
+        api_params["messages"] = messages + tool_conversation
         
         response = openai.chat.completions.create(**api_params)
         assistant_message = response.choices[0].message
         
-        # Update history with tool interactions
-        history.extend(tool_history)
+        # If we're at the max iterations and still have tool calls, log a warning
+        if (current_iteration == max_tool_iterations and 
+            hasattr(assistant_message, 'tool_calls') and 
+            assistant_message.tool_calls):
+            print(f"Warning: Reached maximum tool call iterations ({max_tool_iterations})")
+            if memtor:
+                memtor.add_memory(
+                    f"Warning: Reached maximum tool call iterations ({max_tool_iterations})", 
+                    "system", 
+                    {"type": "warning", "timestamp": datetime.datetime.now().isoformat()}
+                )
     
-    # Add final assistant response to history
-    history.append({
-        "role": "assistant",
-        "content": assistant_message.content
-    })
-    
-    # Save updated history to session
-    session["history"] = history
-    utils.save_session(utils.get_db_path(), session["session_id"], assistant, history)
+    # Update session timestamp
+    session["updated_at"] = datetime.datetime.now().isoformat()
     
     # Extract usage statistics
     usage = {}
@@ -288,19 +358,23 @@ def process_message(
         if token_callback:
             token_callback(usage)
     
-    # Store insights in memory
+    # Store the conversation in memory
     if memtor and isinstance(message, str):
-        # Extract insights from the conversation and store in memory
-        last_user_msg = message
+        # Extract the messages from the conversation
+        last_user_msg = formatted_message
         last_assistant_msg = assistant_message.content
         
-        insight = f"User asked: '{last_user_msg}', Assistant answered: '{last_assistant_msg}'"
-        memory.add_memory(
-            memtor,
-            content=insight,
-            metadata={"type": "conversation", "timestamp": datetime.datetime.now().isoformat()},
-            user_id=session["session_id"]
-        )
+        # Common metadata for both messages
+        metadata = {
+            "type": "conversation", 
+            "timestamp": datetime.datetime.now().isoformat()
+        }
+        
+        # Add user message
+        memtor.add_memory(last_user_msg, "user", metadata)
+        
+        # Add assistant message
+        memtor.add_memory(last_assistant_msg, "assistant", metadata)
     
     # Return response and usage
     return {
@@ -309,61 +383,50 @@ def process_message(
     }
 
 
-def get_history(session: Dict[str, Any]) -> List[Dict[str, Any]]:
+def get_conversation(session: Dict[str, Any], limit: int = 10) -> List[Dict[str, Any]]:
     """
-    Get the conversation history from a session.
+    Get recent conversation messages from memory.
     
     Args:
         session: Session dictionary
+        limit: Maximum number of messages to retrieve
         
     Returns:
-        List of message dictionaries
+        List of message dictionaries with role and content only
     """
-    return session.get("history", [])
+    memtor = session.get("memory")
+    if not memtor:
+        return []
+    
+    messages = memtor._get_session_messages(token_limit=4000)  # Get most recent messages
+    
+    # Return only the most recent messages, limited by count
+    recent_messages = messages[-limit*2:] if limit > 0 else messages
+    
+    # Format as API-compatible messages with only role and content
+    return [{"role": msg["role"], "content": msg["content"]} for msg in recent_messages]
 
 
-def set_history(session: Dict[str, Any], new_history: List[Dict[str, Any]]):
+def add_memory(session: Dict[str, Any], message: str, role: str = "user", metadata: Dict = None):
     """
-    Set the conversation history for a session.
+    Add a message directly to memory.
     
     Args:
         session: Session dictionary
-        new_history: New conversation history
+        message: Message content
+        role: Message role (user/assistant/system)
+        metadata: Additional metadata
     """
-    session["history"] = new_history
-    utils.save_session(
-        utils.get_db_path(),
-        session["session_id"],
-        session["assistant"],
-        new_history
-    )
-
-
-def add_messages(session: Dict[str, Any], messages: List[Dict[str, Any]], prepend: bool = False):
-    """
-    Add messages to the conversation history.
+    memtor = session.get("memory")
+    if not memtor:
+        return
     
-    Args:
-        session: Session dictionary
-        messages: Messages to add
-        prepend: If True, add messages to the beginning of history
-    """
-    history = session.get("history", [])
-    
-    if prepend:
-        session["history"] = messages + history
-    else:
-        session["history"] = history + messages
-    
-    utils.save_session(
-        utils.get_db_path(),
-        session["session_id"],
-        session["assistant"],
-        session["history"]
-    )
+    # Add to memory with metadata
+    metadata = metadata or {}
+    memtor.add_memory(message, role, metadata)
 
 
-def get_memory(session: Dict[str, Any]) -> Optional[Memtor]:
+def get_memory(session: Dict[str, Any]) -> Optional[Mem4AI]:
     """
     Get the memory object from a session.
     
@@ -371,21 +434,26 @@ def get_memory(session: Dict[str, Any]) -> Optional[Memtor]:
         session: Session dictionary
         
     Returns:
-        Memtor instance or None
+        Mem4AI instance or None
     """
     return session.get("memory")
 
 
 def update_memory(session: Dict[str, Any], content: str, metadata: Dict[str, Any] = None):
     """
-    Add a new memory to the session.
+    Add a new memory to the session. This is used for adding user preferences
+    or facts that aren't tied directly to a conversation.
     
     Args:
         session: Session dictionary
-        content: Memory content
+        content: Memory content (treated as a user message)
         metadata: Additional metadata (optional)
     """
-    memtor = session.get("memory")
-    if memtor:
+    mem = session.get("memory")
+    if mem:
+        # Add the fact as a user message with special metadata
         metadata = metadata or {}
-        memory.add_memory(memtor, content, metadata, session["session_id"])
+        metadata["type"] = "fact"  # Mark as a fact for special handling
+        
+        # Add directly to Mem4AI
+        mem.add_memory(content, "user", metadata)
