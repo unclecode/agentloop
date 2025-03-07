@@ -13,11 +13,14 @@ from typing import List, Dict, Any, Optional, Callable, Union
 from . import utils
 from .mem4ai import Mem4AI  # Import the memory implementation directly
 
-# Define memory reset function
-def reset_memory():
+# Memory reset functions
+def reset_all_memory():
     """
-    Reset the memory database by deleting and recreating it.
+    Reset the entire memory database by deleting and recreating it.
     This is useful for testing or clearing all conversations.
+    
+    Returns:
+        bool: True if successful, False otherwise
     """
     home_dir = os.path.expanduser("~")
     memory_db_path = os.path.join(home_dir, ".agentloop", "memory.db")
@@ -31,6 +34,48 @@ def reset_memory():
         print(f"Error resetting memory database: {str(e)}")
         return False
 
+def reset_memory(session_id=None, agent_id=None):
+    """
+    Reset memory for a specific session, agent, or both.
+    
+    Args:
+        session_id: Optional ID of the session to clear
+        agent_id: Optional ID of the agent to clear
+        
+    Returns:
+        bool: True if successful, False otherwise
+    """
+    if not session_id and not agent_id:
+        # If no specific IDs provided, reset everything
+        return reset_all_memory()
+    
+    home_dir = os.path.expanduser("~")
+    memory_db_path = os.path.join(home_dir, ".agentloop", "memory.db")
+    
+    if not os.path.exists(memory_db_path):
+        # No database to reset
+        return True
+        
+    try:
+        # Create an instance of Mem4AI directly
+        from .mem4ai import Mem4AI
+        mem = Mem4AI(memory_db_path)
+        
+        if session_id and agent_id:
+            # Clear memory for specific session and agent
+            return mem.clear_memory(session_id=session_id, agent_id=agent_id)
+        elif session_id:
+            # Clear memory for specific session
+            return mem.clear_memory(session_id=session_id)
+        elif agent_id:
+            # Clear memory for specific agent
+            return mem.clear_memory(agent_id=agent_id)
+        
+        return True
+    except Exception as e:
+        print(f"Error resetting memory: {str(e)}")
+        return False
+
 
 def create_assistant(
     model_id: str,
@@ -39,7 +84,9 @@ def create_assistant(
     params: Dict[str, Any] = {},
     template: Optional[str] = None,
     template_params: Dict[str, Any] = {},
-    guardrail: Optional[str] = None
+    guardrail: Optional[str] = None,
+    tool_schemas: Optional[List[Dict[str, Any]]] = None, # If this is provided, tools will be ignored
+    remember_tool_calls: bool = False  # Whether to include tool calls in future prompts
 ) -> Dict[str, Any]:
     """
     Create an assistant with the specified configuration.
@@ -52,6 +99,8 @@ def create_assistant(
         template: Jinja2 template for dynamic system messages
         template_params: Variables to render the template
         guardrail: Rule to enforce behavior
+        tool_schemas: Optional list of tool schema dictionaries (if provided, tools will be ignored)
+        remember_tool_calls: Reserved for future use - will enable including tool calls in context (current implementation stores but doesn't include in context)
         
     Returns:
         Assistant configuration dictionary
@@ -71,8 +120,8 @@ def create_assistant(
             final_system_message = guardrail
     
     # Process tools if provided
-    tool_schemas = []
-    if tools:
+    tool_schemas = tool_schemas or []
+    if tools and not tool_schemas:
         for tool in tools:
             schema = utils.get_function_schema(tool)
             tool_schemas.append(schema)
@@ -83,7 +132,8 @@ def create_assistant(
         "system_message": final_system_message,
         "tools": tool_schemas,
         "tool_map": {tool.__name__: tool for tool in tools},
-        "params": params
+        "params": params,
+        "remember_tool_calls": remember_tool_calls
     }
     
     return assistant
@@ -132,7 +182,8 @@ def process_message(
     template_params: Dict[str, Any] = {},
     context: Optional[Union[str, List[Dict[str, Any]]]] = None,
     schema: Optional[Dict[str, Any]] = None,
-    token_callback: Optional[Callable[[Dict[str, int]], None]] = None
+    token_callback: Optional[Callable[[Dict[str, int]], None]] = None,
+    context_data: Dict[str, Any] = None
 ) -> Dict[str, Any]:
     """
     Process a user message in the given session.
@@ -145,6 +196,7 @@ def process_message(
         context: Additional context to include
         schema: JSON schema for structured output
         token_callback: Function to call with token usage statistics
+        context_data: Additional data to pass to tools (not part of conversation)
         
     Returns:
         Dictionary with response and usage statistics
@@ -152,7 +204,7 @@ def process_message(
     import openai
     
     assistant = session["assistant"]
-    memtor = session.get("memory")
+    memtor : Mem4AI = session.get("memory")
     
     # Format user message
     formatted_message = message
@@ -180,6 +232,8 @@ def process_message(
         
         # Process short-term memory
         for mem in memory_contexts.get("short_term", []):
+            # Include only user and assistant messages for now
+            # Tool calls need special handling to satisfy OpenAI's requirements
             if mem['role'] in ['user', 'assistant']:
                 # Keep only role and content for API compatibility
                 short_term_context.append({
@@ -189,6 +243,8 @@ def process_message(
         
         # Process middle-term memory
         for mem in memory_contexts.get("middle_term", []):
+            # Include only user and assistant messages for now
+            # Tool calls need special handling to satisfy OpenAI's requirements
             if mem['role'] in ['user', 'assistant']:
                 # Keep only role and content for API compatibility
                 middle_term_context.append({
@@ -284,7 +340,11 @@ def process_message(
             if function_name in tool_map:
                 function = tool_map[function_name]
                 try:
-                    function_response = function(**function_args)
+                    # Pass context_data to the function if available
+                    if context_data:
+                        function_response = function(**function_args, **context_data)
+                    else:
+                        function_response = function(**function_args)
                     result = str(function_response)
                 except Exception as e:
                     result = f"Error: {str(e)}"
@@ -307,13 +367,18 @@ def process_message(
                     "type": "tool_call",
                     "timestamp": datetime.datetime.now().isoformat(),
                     "function_name": function_name,
+                    "tool_call_id": tool_call.id,
                     "iteration": current_iteration
                 }
+                
+                # Store function call in memory
                 memtor.add_memory(
                     f"Function call: {function_name} with args: {function_args}", 
                     "assistant", 
                     tool_metadata
                 )
+                
+                # Always store tool result in memory for potential future reference
                 memtor.add_memory(
                     f"Function result: {result}", 
                     "tool", 
@@ -327,6 +392,7 @@ def process_message(
         # Make another API call with all tool results so far
         api_params["messages"] = messages + tool_conversation
         
+        api_params['model'] = "gpt-3.5-turbo"
         response = openai.chat.completions.create(**api_params)
         assistant_message = response.choices[0].message
         
@@ -383,77 +449,3 @@ def process_message(
     }
 
 
-def get_conversation(session: Dict[str, Any], limit: int = 10) -> List[Dict[str, Any]]:
-    """
-    Get recent conversation messages from memory.
-    
-    Args:
-        session: Session dictionary
-        limit: Maximum number of messages to retrieve
-        
-    Returns:
-        List of message dictionaries with role and content only
-    """
-    memtor = session.get("memory")
-    if not memtor:
-        return []
-    
-    messages = memtor._get_session_messages(token_limit=4000)  # Get most recent messages
-    
-    # Return only the most recent messages, limited by count
-    recent_messages = messages[-limit*2:] if limit > 0 else messages
-    
-    # Format as API-compatible messages with only role and content
-    return [{"role": msg["role"], "content": msg["content"]} for msg in recent_messages]
-
-
-def add_memory(session: Dict[str, Any], message: str, role: str = "user", metadata: Dict = None):
-    """
-    Add a message directly to memory.
-    
-    Args:
-        session: Session dictionary
-        message: Message content
-        role: Message role (user/assistant/system)
-        metadata: Additional metadata
-    """
-    memtor = session.get("memory")
-    if not memtor:
-        return
-    
-    # Add to memory with metadata
-    metadata = metadata or {}
-    memtor.add_memory(message, role, metadata)
-
-
-def get_memory(session: Dict[str, Any]) -> Optional[Mem4AI]:
-    """
-    Get the memory object from a session.
-    
-    Args:
-        session: Session dictionary
-        
-    Returns:
-        Mem4AI instance or None
-    """
-    return session.get("memory")
-
-
-def update_memory(session: Dict[str, Any], content: str, metadata: Dict[str, Any] = None):
-    """
-    Add a new memory to the session. This is used for adding user preferences
-    or facts that aren't tied directly to a conversation.
-    
-    Args:
-        session: Session dictionary
-        content: Memory content (treated as a user message)
-        metadata: Additional metadata (optional)
-    """
-    mem = session.get("memory")
-    if mem:
-        # Add the fact as a user message with special metadata
-        metadata = metadata or {}
-        metadata["type"] = "fact"  # Mark as a fact for special handling
-        
-        # Add directly to Mem4AI
-        mem.add_memory(content, "user", metadata)

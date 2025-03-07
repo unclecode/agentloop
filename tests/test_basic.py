@@ -1,7 +1,7 @@
 import datetime
 import os
 import time
-from mem4ai import Mem4AI  # Assuming the class is saved in mem4ai.py
+from agentloop.mem4ai import Mem4AI
 
 # Test database path
 TEST_DB_PATH = "test_memory.db"
@@ -18,6 +18,7 @@ def test_mem4ai():
     # Test 1: Create a new session and add messages
     print("=== Test 1: New Session ===")
     session_id_1 = memory.load(user_id="user123")
+    print(f"Session ID: {session_id_1}")
     memory.add_memory("Hello!", "user", {"location": "Paris"})
     memory.add_memory("Hi there! How can I help you?", "assistant")
     memory.add_memory("What's the weather like in Paris?", "user", {"intent": "weather"})
@@ -28,7 +29,7 @@ def test_mem4ai():
     print("\n=== Test 2: Short-Term Memory ===")
     context = memory.build_context("What's the weather like?", max_tokens=50)
     print("Context (Short-Term):")
-    for msg in context:
+    for msg in context['short_term']:
         print(f"{msg['role']}: {msg['content']} (tokens: {msg['tokens']})")
 
     # Test 3: Simulate a new session after timeout
@@ -45,8 +46,11 @@ def test_mem4ai():
     print("\n=== Test 4: Middle-Term Memory (Search) ===")
     context = memory.build_context("What's the weather like in Paris?", max_tokens=100)
     print("Context (Short-Term + Middle-Term):")
-    for msg in context:
+    for msg in context['short_term']:
         print(f"{msg['role']}: {msg['content']} (tokens: {msg['tokens']})")
+
+    for msg in context['middle_term']:
+        print(f"{msg['role']}: {msg['content']} (tokens: {msg['tokens']}")
 
     # Test 5: Search memory with metadata filter
     print("\n=== Test 5: Search Memory with Metadata Filter ===")

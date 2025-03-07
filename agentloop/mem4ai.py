@@ -215,6 +215,11 @@ class Mem4AI:
             })
             total_tokens += row[2]
         
+        # Convert back metadata string to dict
+        for r in results:
+            if r['metadata']:
+                r['metadata'] = eval(r['metadata'])
+        
         return results
 
     def _get_session_messages(self, token_limit: int) -> List[Dict]:
@@ -241,11 +246,99 @@ class Mem4AI:
             })
             total_tokens += row[2]
         
+        # Convert back metadata string to dict
+        for m in messages:
+            if m['metadata']:        
+                m['metadata'] = eval(m['metadata'])
+
         return messages
 
     def close(self):
         """Close database connection"""
         self.conn.close()
+        
+    def clear_memory(self, session_id: Optional[str] = None, agent_id: Optional[str] = None, user_id: Optional[str] = None) -> bool:
+        """
+        Clear memory entries based on specified parameters.
+        
+        Args:
+            session_id: Optional ID of the session to clear
+            agent_id: Optional ID of the agent to clear (stored in metadata)
+            user_id: Optional ID of the user to clear
+            
+        Returns:
+            bool: True if successful, False otherwise
+        """
+        try:
+            # Build where clauses
+            conditions = []
+            params = []
+            
+            if session_id:
+                conditions.append("session_id = ?")
+                params.append(session_id)
+                
+            if user_id:
+                cursor = self.conn.execute(
+                    "SELECT session_id FROM sessions WHERE user_id = ?", 
+                    (user_id,)
+                )
+                session_ids = [row[0] for row in cursor.fetchall()]
+                if session_ids:
+                    placeholders = ", ".join(["?"] * len(session_ids))
+                    conditions.append(f"session_id IN ({placeholders})")
+                    params.extend(session_ids)
+            
+            if agent_id:
+                conditions.append("metadata LIKE ?")
+                params.append(f"%'agent_id': '{agent_id}'%")
+            
+            # If no condition is specified, do nothing (safety measure)
+            if not conditions:
+                return False
+                
+            # Remove from messages and FTS
+            with self.conn:
+                # Delete from messages table
+                where_clause = " AND ".join(conditions)
+                
+                # First delete from FTS (which links to rowid)
+                cursor = self.conn.execute(
+                    f"SELECT rowid FROM messages WHERE {where_clause}", 
+                    params
+                )
+                message_ids = [row[0] for row in cursor.fetchall()]
+                
+                if message_ids:
+                    # Delete from FTS using rowids
+                    placeholders = ", ".join(["?"] * len(message_ids))
+                    self.conn.execute(
+                        f"DELETE FROM messages_fts WHERE rowid IN ({placeholders})",
+                        message_ids
+                    )
+                
+                # Delete from messages
+                self.conn.execute(
+                    f"DELETE FROM messages WHERE {where_clause}",
+                    params
+                )
+                
+                # If session_id is specified, also clean up the sessions table
+                if session_id:
+                    self.conn.execute(
+                        "DELETE FROM sessions WHERE session_id = ?",
+                        (session_id,)
+                    )
+                elif user_id:
+                    self.conn.execute(
+                        "DELETE FROM sessions WHERE user_id = ?",
+                        (user_id,)
+                    )
+                    
+            return True
+        except Exception as e:
+            print(f"Error clearing memory: {str(e)}")
+            return False
 
 # Example usage
 if __name__ == "__main__":
