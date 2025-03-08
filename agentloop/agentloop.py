@@ -86,7 +86,8 @@ def create_assistant(
     template_params: Dict[str, Any] = {},
     guardrail: Optional[str] = None,
     tool_schemas: Optional[List[Dict[str, Any]]] = None, # If this is provided, tools will be ignored
-    remember_tool_calls: bool = False  # Whether to include tool calls in future prompts
+    remember_tool_calls: bool = False,  # Whether to include tool calls in future prompts
+    synthesizer_model_id: Optional[str] = None  # Model to use for tool call synthesis, defaults to model_id if not provided
 ) -> Dict[str, Any]:
     """
     Create an assistant with the specified configuration.
@@ -101,6 +102,7 @@ def create_assistant(
         guardrail: Rule to enforce behavior
         tool_schemas: Optional list of tool schema dictionaries (if provided, tools will be ignored)
         remember_tool_calls: Reserved for future use - will enable including tool calls in context (current implementation stores but doesn't include in context)
+        synthesizer_model_id: Model to use for tool call synthesis, defaults to model_id if not provided
         
     Returns:
         Assistant configuration dictionary
@@ -133,7 +135,8 @@ def create_assistant(
         "tools": tool_schemas,
         "tool_map": {tool.__name__: tool for tool in tools},
         "params": params,
-        "remember_tool_calls": remember_tool_calls
+        "remember_tool_calls": remember_tool_calls,
+        "synthesizer_model_id": synthesizer_model_id or model_id
     }
     
     return assistant
@@ -392,7 +395,8 @@ def process_message(
         # Make another API call with all tool results so far
         api_params["messages"] = messages + tool_conversation
         
-        api_params['model'] = "gpt-3.5-turbo"
+        # Use synthesizer model for tool call processing
+        api_params['model'] = assistant.get("synthesizer_model_id")
         response = openai.chat.completions.create(**api_params)
         assistant_message = response.choices[0].message
         

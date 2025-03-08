@@ -52,7 +52,8 @@ assistant = agentloop.create_assistant(
     template="Hello, {{name}}! I'm your {{role}} assistant.",
     template_params={"name": "Alice", "role": "travel"},
     tools=[get_weather],
-    guardrail="Don't discuss politics."
+    guardrail="Don't discuss politics.",
+    synthesizer_model_id="gpt-3.5-turbo"  # Optional: use a different model for tool calls
 )
 
 # Start session
@@ -79,7 +80,8 @@ assistant = agentloop.create_assistant(
     params={"temperature": 0.7},
     template="Hello {{name}}! I am your {{role}} assistant.",
     template_params={"name": "User", "role": "travel"},
-    guardrail="Always be polite and helpful."
+    guardrail="Always be polite and helpful.",
+    synthesizer_model_id="gpt-3.5-turbo"  # Optional: different model for tool call processing
 )
 ```
 

@@ -9,6 +9,8 @@ from .agentloop import (
     create_assistant,
     start_session,
     process_message,
+    reset_all_memory,
+    reset_memory,
 )
 
 __version__ = "0.1.0"
