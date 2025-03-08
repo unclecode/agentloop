@@ -300,6 +300,227 @@ def get_list_items(
             "type": "movie_json"
         })
 
+def remove_favorite_list(
+    list_id: str,
+    **context  # Catches user_id and user_token from context
+) -> str:
+    """
+    Remove an entire favorite list.
+    
+    Args:
+        list_id: ID of the list to remove
+        
+    Context Args (passed by agentloop):
+        user_id: User identifier
+        user_token: User access token
+        
+    Returns:
+        JSON string with removal result
+    """
+    try:
+        # Extract credentials from context
+        user_id = context.get("user_id")
+        user_token = context.get("user_token")
+        
+        # Validate required parameters
+        if not user_id or not user_token:
+            return json.dumps({
+                "status": False,
+                "message": "Missing required credentials",
+                "type": "list"
+            })
+            
+        if not list_id:
+            return json.dumps({
+                "status": False,
+                "message": "Missing required parameter: list_id",
+                "type": "list"
+            })
+            
+        # Create API client
+        api_client = MojitoAPIs(user_id=user_id, token=user_token)
+        
+        # Call API to remove list
+        response = api_client.remove_favorite_list(list_id=list_id)
+        
+        # Format response for agentloop
+        if response.get('status'):
+            return json.dumps({
+                "status": True,
+                "message": "List removed successfully",
+                "type": "list",
+                "data": {
+                    "list_id": list_id
+                }
+            })
+        else:
+            return json.dumps({
+                "status": False,
+                "message": response.get('message', 'Failed to remove list'),
+                "type": "list"
+            })
+            
+    except Exception as e:
+        return json.dumps({
+            "status": False, 
+            "message": f"Error removing list: {str(e)}",
+            "type": "list"
+        })
+
+def remove_from_favorite_list(
+    list_id: str,
+    movie_ids: List[str],
+    **context  # Catches user_id and user_token from context
+) -> str:
+    """
+    Remove specific movies from a favorite list.
+    
+    Args:
+        list_id: ID of the list to remove movies from
+        movie_ids: List of movie IDs to remove from the list
+        
+    Context Args (passed by agentloop):
+        user_id: User identifier
+        user_token: User access token
+        
+    Returns:
+        JSON string with removal result
+    """
+    try:
+        # Extract credentials from context
+        user_id = context.get("user_id")
+        user_token = context.get("user_token")
+        
+        # Validate required parameters
+        if not user_id or not user_token:
+            return json.dumps({
+                "status": False,
+                "message": "Missing required credentials",
+                "type": "list"
+            })
+            
+        if not list_id:
+            return json.dumps({
+                "status": False,
+                "message": "Missing required parameter: list_id",
+                "type": "list"
+            })
+            
+        if not movie_ids or not isinstance(movie_ids, list):
+            return json.dumps({
+                "status": False,
+                "message": "Missing or invalid parameter: movie_ids",
+                "type": "list"
+            })
+            
+        # Create API client
+        api_client = MojitoAPIs(user_id=user_id, token=user_token)
+        
+        # Call API to remove movies from list
+        response = api_client.remove_movies_from_list(list_id=list_id, movie_ids=movie_ids)
+        
+        # Get successful and failed removals
+        success_removals = response['data'].get('success', [])
+        failed_removals = response['data'].get('failed', [])
+        
+        # Format response for agentloop
+        if response.get('status'):
+            return json.dumps({
+                "status": True,
+                "message": "Movies removed from list successfully",
+                "type": "list",
+                "data": {
+                    "list_id": list_id,
+                    "success_removals": success_removals,
+                    "failed_removals": failed_removals
+                }
+            })
+        else:
+            return json.dumps({
+                "status": False,
+                "message": response.get('message', 'Failed to remove movies from list'),
+                "type": "list"
+            })
+            
+    except Exception as e:
+        return json.dumps({
+            "status": False, 
+            "message": f"Error removing movies from list: {str(e)}",
+            "type": "list"
+        })
+
+def add_to_big_five_list(
+    movies: List[Dict[str, Any]],
+    **context  # Catches user_id and user_token from context
+) -> str:
+    """
+    Add movies to the user's Big Five list (limited to 5 total movies).
+    
+    Args:
+        movies: List of movie objects to add to the Big Five list
+        
+    Context Args (passed by agentloop):
+        user_id: User identifier
+        user_token: User access token
+        
+    Returns:
+        JSON string with result of the operation
+    """
+    try:
+        # Extract credentials from context
+        user_id = context.get("user_id")
+        user_token = context.get("user_token")
+        
+        # Validate required parameters
+        if not user_id or not user_token:
+            return json.dumps({
+                "status": False,
+                "message": "Missing required credentials",
+                "type": "list"
+            })
+            
+        if not movies or not isinstance(movies, list):
+            return json.dumps({
+                "status": False,
+                "message": "Missing or invalid parameter: movies",
+                "type": "list"
+            })
+        
+        # Limit to 5 movies maximum
+        if len(movies) > 5:
+            movies = movies[:5]
+        
+        # Create API client
+        api_client = MojitoAPIs(user_id=user_id, token=user_token)
+        
+        # Call API to add movies to Big Five list
+        response = api_client.add_to_big_five_list(movies=movies)
+        
+        # Format response for agentloop
+        if response.get('status'):
+            return json.dumps({
+                "status": True,
+                "message": "Movies added to Big Five list successfully",
+                "type": "list",
+                "data": {
+                    "list_id": "BIG_FIVE",
+                    "added_movies": [movie.get('title', movie.get('name', 'Unknown')) for movie in movies]
+                }
+            })
+        else:
+            return json.dumps({
+                "status": False,
+                "message": response.get('message', 'Failed to add movies to Big Five list'),
+                "type": "list"
+            })
+            
+    except Exception as e:
+        return json.dumps({
+            "status": False, 
+            "message": f"Error adding movies to Big Five list: {str(e)}",
+            "type": "list"
+        })
+
 # Tool schemas for agentloop
 CREATE_LIST_SCHEMA = {
     "type": "function",
@@ -387,12 +608,88 @@ GET_LIST_ITEMS_SCHEMA = {
     }
 }
 
+REMOVE_LIST_SCHEMA = {
+    "type": "function",
+    "function": {
+        "name": "remove_favorite_list",
+        "description": "Remove an entire favorite list",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "list_id": {
+                    "type": "string",
+                    "description": "ID of the favorite list to remove"
+                }
+            },
+            "required": ["list_id"]
+        }
+    }
+}
+
+REMOVE_FROM_LIST_SCHEMA = {
+    "type": "function",
+    "function": {
+        "name": "remove_from_favorite_list",
+        "description": "Remove specific movies from a favorite list",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "list_id": {
+                    "type": "string",
+                    "description": "ID of the favorite list"
+                },
+                "movie_ids": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    },
+                    "description": "List of movie IDs to remove from the list"
+                }
+            },
+            "required": ["list_id", "movie_ids"]
+        }
+    }
+}
+
+ADD_TO_BIG_FIVE_SCHEMA = {
+    "type": "function",
+    "function": {
+        "name": "add_to_big_five_list",
+        "description": "Add movies to the user's Big Five list (limited to 5 total movies)",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "movies": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "id": {"type": ["string", "integer"], "description": "Movie ID"},
+                            "name": {"type": "string", "description": "Movie title/name"},
+                            "year": {"type": "string", "description": "Release year"},
+                            "type": {"type": "string", "description": "Content type (movie, tv-series, etc.)"},
+                            "poster_path": {"type": "string", "description": "Path to movie poster"},
+                            "backdrop_path": {"type": "string", "description": "Path to movie backdrop"}
+                        },
+                        "required": ["name"]
+                    },
+                    "description": "List of movie objects to add to the Big Five list (maximum 5 items)"
+                }
+            },
+            "required": ["movies"]
+        }
+    }
+}
+
 # Export tools for dynamic loading
 TOOLS = {
     "create_favorite_list": create_favorite_list,
     "add_to_favorite_list": add_to_favorite_list,
     "get_favorite_lists": get_favorite_lists,
-    "get_list_items": get_list_items
+    "get_list_items": get_list_items,
+    "remove_favorite_list": remove_favorite_list,
+    "remove_from_favorite_list": remove_from_favorite_list,
+    "add_to_big_five_list": add_to_big_five_list
 }
 
 # Export schemas for dynamic loading
@@ -400,5 +697,8 @@ TOOL_SCHEMAS = {
     "create_favorite_list": CREATE_LIST_SCHEMA,
     "add_to_favorite_list": ADD_TO_LIST_SCHEMA,
     "get_favorite_lists": GET_LISTS_SCHEMA,
-    "get_list_items": GET_LIST_ITEMS_SCHEMA
+    "get_list_items": GET_LIST_ITEMS_SCHEMA,
+    "remove_favorite_list": REMOVE_LIST_SCHEMA,
+    "remove_from_favorite_list": REMOVE_FROM_LIST_SCHEMA,
+    "add_to_big_five_list": ADD_TO_BIG_FIVE_SCHEMA
 }

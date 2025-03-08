@@ -39,7 +39,8 @@ def main():
             }
         },
         verbose=True,
-        remember_tool_calls=True
+        remember_tool_calls=True,
+        synthesizer_model_id="gpt-3.5-turbo"  # Using the new parameter for tool call synthesis
     )
     
     print("\n===== Moji Favorite Lists Example =====")
@@ -68,6 +69,30 @@ def main():
     # Example 4: Getting movies from a list
     print("\n4. Getting movies from a list")
     response = assistant.chat("What movies are in my 'My Sci-Fi Favorites' list?")
+    print("\nResponse Type:", response["output_type"])
+    print("Response Content:", json.dumps(response["response"], indent=2))
+    
+    # Example 5: Adding movies to Big Five list
+    print("\n5. Adding to Big Five list")
+    response = assistant.chat("Add Inception, Interstellar, and The Dark Knight to my Big Five list")
+    print("\nResponse Type:", response["output_type"])
+    print("Response Content:", json.dumps(response["response"], indent=2))
+    
+    # Example 6: Removing a movie from a list
+    print("\n6. Removing a movie from a list")
+    response = assistant.chat("Get the list of movies in my 'My Sci-Fi Favorites' list and then remove The Matrix from it")
+    print("\nResponse Type:", response["output_type"])
+    print("Response Content:", json.dumps(response["response"], indent=2))
+    
+    # Example 7: Creating a list that will be removed
+    print("\n7. Creating a list to delete")
+    response = assistant.chat("Create a temporary list called 'List to Delete'")
+    print("\nResponse Type:", response["output_type"])
+    print("Response Content:", json.dumps(response["response"], indent=2))
+    
+    # Example 8: Removing a list
+    print("\n8. Removing a list")
+    response = assistant.chat("Remove my 'List to Delete' list")
     print("\nResponse Type:", response["output_type"])
     print("Response Content:", json.dumps(response["response"], indent=2))
     
