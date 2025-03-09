@@ -125,13 +125,13 @@ class MojiAssistant:
         Initialize or resume an agentloop session for this user.
         
         Returns:
-            Agentloop session dictionary
+            Agentloop session dictionary for compatibility with existing code
         """
         # Create a session ID based on user ID and action
         session_id = f"{self.user_id}_{self.action}"
         
-        # Create an assistant with the appropriate configuration
-        assistant = agentloop.create_assistant(
+        # Create an AgentLoop instance directly
+        self.agent = agentloop.AgentLoop(
             model_id=self.model_id,
             system_message=self._get_system_message(),
             tools=list(self.tools.values()),
@@ -142,7 +142,7 @@ class MojiAssistant:
         )
         
         # Start the session
-        session = agentloop.start_session(assistant, session_id, user_id=self.user_id)
+        session = self.agent.start_session(session_id, user_id=self.user_id)
         
         return session
     
@@ -194,9 +194,8 @@ You can provide recommendations, information, or help manage their favorite list
         Returns:
             Response dictionary with output_type and response
         """
-        # Process the message using agentloop with context_data for credentials
-        result = agentloop.process_message(
-            self.session,
+        # Process the message using the agent with context_data for credentials
+        result = self.agent.process_message(
             message,
             context=self._get_context(),
             context_data={
@@ -218,9 +217,8 @@ You can provide recommendations, information, or help manage their favorite list
         Yields:
             Streaming event dictionaries from agentloop
         """
-        # Process the message using agentloop with streaming and context_data for credentials
-        for stream_event in agentloop.streamed_process_message(
-            self.session,
+        # Process the message using agent with streaming and context_data for credentials
+        for stream_event in self.agent.streamed_process_message(
             message,
             context=self._get_context(),
             context_data={
@@ -338,7 +336,7 @@ You can provide recommendations, information, or help manage their favorite list
         """
         Clear the current conversation thread.
         """
-        # Reset the session by creating a new one
+        # Reset the session by initializing a new AgentLoop and session
         self.session = self._initialize_session()
         
         if self.verbose:
@@ -354,19 +352,18 @@ You can provide recommendations, information, or help manage their favorite list
         Returns:
             bool: True if successful, False otherwise
         """
-        session_id = self.session.get("session_id")
+        # Use the agent's clear_memory method directly
+        result = self.agent.clear_memory(reset_all=reset_all)
         
-        if reset_all:
-            result = agentloop.reset_all_memory()
-        else:
-            # Reset just this session's memory
-            result = agentloop.reset_memory(session_id=session_id)
-            
         if self.verbose:
             if result:
-                print(f"Memory cleared for session {session_id}")
+                print(f"Memory cleared for session {self.agent.session_id}")
             else:
-                print(f"Failed to clear memory for session {session_id}")
+                print(f"Failed to clear memory for session {self.agent.session_id}")
+        
+        # Reinitialize the session to ensure a fresh state if memory was cleared
+        if result:
+            self.session = self._initialize_session()
                 
         return result
 

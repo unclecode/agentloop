@@ -134,16 +134,12 @@ def log_bug_report(user_id: str, report_data: Dict[str, Any]) -> None:
         conversation = []
         if user_id in active_assistants:
             assistant = active_assistants[user_id]
-            if hasattr(assistant, 'session') and assistant.session:
-                # Try to extract some conversation history
-                memory = assistant.session.get('memory')
-                if memory:
-                    # This is a simplified approach - real implementation would 
-                    # need to consider the memory model's actual API
-                    try:
-                        conversation = memory.search_memory("", limit=10) or []
-                    except:
-                        pass
+            if hasattr(assistant, 'agent'):
+                # Try to extract some conversation history using the agent's get_history method
+                try:
+                    conversation = assistant.agent.get_history(token_limit=1000) or []
+                except Exception as e:
+                    print(f"Error getting history for bug report: {str(e)}")
         
         # Prepare bug report with additional server info
         bug_report = {
@@ -229,17 +225,8 @@ def get_conversation_history():
         # Get assistant for this user
         assistant = get_assistant(user_id, user_token)
 
-        session = assistant.session
-        if not session:
-            return jsonify({
-                "success": False,
-                "error": "No active session found"
-            }), 404
-        # Get the memory object directly from the assistant's session
-        memory : agentloop.mem4ai.Mem4AI = session.get("memory")
-        
-        # Get the messages from the memory object
-        formatted_messages = memory.get_session_messages(token_limit=1e6)
+        # Get history directly through the agent
+        formatted_messages = assistant.agent.get_history(token_limit=int(1e6))
         
         return jsonify({
             "success": True,
