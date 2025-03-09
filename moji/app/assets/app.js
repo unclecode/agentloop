@@ -91,6 +91,82 @@ function init() {
     handleInputChange();
 }
 
+// Function to load conversation history from the server
+async function loadConversationHistory() {
+    try {
+        // Clear any existing messages first
+        chatMessages.innerHTML = '';
+        
+        // Add loading indicator
+        const loadingIndicator = addTypingIndicator();
+        
+        // Fetch conversation history from the server
+        const response = await fetch(`/api/history?user_id=${state.userId}&user_token=${state.userToken}`);
+        const data = await response.json();
+        
+        // Remove loading indicator
+        removeElement(loadingIndicator);
+        
+        if (!response.ok || !data.success) {
+            throw new Error(data.error || 'Failed to load conversation history');
+        }
+        
+        // Check if we have any messages
+        if (data.messages && data.messages.length > 0) {
+            // Display the messages
+            data.messages.forEach(msg => {
+                const content = msg.content;
+                const role = msg.role;
+                addMessage(content, role);
+            });
+            
+            // Scroll to bottom
+            scrollToBottom();
+        } else {
+            // If no messages, display welcome message
+            displayWelcomeMessage();
+        }
+    } catch (error) {
+        console.error('Error loading conversation history:', error);
+        // If error, display welcome message
+        displayWelcomeMessage();
+    }
+}
+
+// Function to display welcome message
+function displayWelcomeMessage() {
+    // Clear chat messages
+    chatMessages.innerHTML = '';
+    
+    // Add welcome message
+    const welcomeMessage = document.createElement('div');
+    welcomeMessage.className = 'welcome-message';
+    welcomeMessage.innerHTML = `
+        <h3>Welcome to Moji Assistant!</h3>
+        <p>I'm your movie companion. Ask me about movies, recommendations, or manage your favorite lists.</p>
+        <div class="welcome-suggestions">
+            <button class="suggestion-btn" data-message="What movies are popular right now?">Popular movies</button>
+            <button class="suggestion-btn" data-message="Create a list of sci-fi movies">Create a list</button>
+            <button class="suggestion-btn" data-message="Recommend me a comedy movie">Comedy recommendation</button>
+        </div>
+    `;
+    chatMessages.appendChild(welcomeMessage);
+    
+    // Reattach event listeners to suggestion buttons
+    welcomeMessage.querySelectorAll('.suggestion-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+            const message = btn.dataset.message;
+            messageInput.value = message;
+            handleInputChange();
+            setTimeout(() => {
+                if (messageInput.value === message) {
+                    messageForm.dispatchEvent(new Event('submit'));
+                }
+            }, 500);
+        });
+    });
+}
+
 function handleInputChange() {
     sendButton.disabled = !messageInput.value.trim();
 }
@@ -147,6 +223,9 @@ function authenticateUser() {
     // Already have credentials, switch to chat screen
     if (state.userId && state.userToken) {
         switchToChatScreen();
+        
+        // Load conversation history
+        loadConversationHistory();
     }
 }
 
@@ -434,36 +513,8 @@ async function handleClearMemory() {
         const data = await response.json();
         
         if (response.ok && data.success) {
-            // Clear the chat UI
-            chatMessages.innerHTML = '';
-            
-            // Add welcome message back
-            const welcomeMessage = document.createElement('div');
-            welcomeMessage.className = 'welcome-message';
-            welcomeMessage.innerHTML = `
-                <h3>Welcome to Moji Assistant!</h3>
-                <p>I'm your movie companion. Ask me about movies, recommendations, or manage your favorite lists.</p>
-                <div class="welcome-suggestions">
-                    <button class="suggestion-btn" data-message="What movies are popular right now?">Popular movies</button>
-                    <button class="suggestion-btn" data-message="Create a list of sci-fi movies">Create a list</button>
-                    <button class="suggestion-btn" data-message="Recommend me a comedy movie">Comedy recommendation</button>
-                </div>
-            `;
-            chatMessages.appendChild(welcomeMessage);
-            
-            // Reattach event listeners to suggestion buttons
-            welcomeMessage.querySelectorAll('.suggestion-btn').forEach(btn => {
-                btn.addEventListener('click', () => {
-                    const message = btn.dataset.message;
-                    messageInput.value = message;
-                    handleInputChange();
-                    setTimeout(() => {
-                        if (messageInput.value === message) {
-                            messageForm.dispatchEvent(new Event('submit'));
-                        }
-                    }, 500);
-                });
-            });
+            // Display welcome message
+            displayWelcomeMessage();
             
             // Add system message
             addMessage('Memory cleared. How can I help you today?', 'assistant');
@@ -548,20 +599,6 @@ function handleLogout() {
     // Clear UI
     emailInput.value = '';
     chatMessages.innerHTML = '';
-    
-    // Add welcome message back
-    const welcomeMessage = document.createElement('div');
-    welcomeMessage.className = 'welcome-message';
-    welcomeMessage.innerHTML = `
-        <h3>Welcome to Moji Assistant!</h3>
-        <p>I'm your movie companion. Ask me about movies, recommendations, or manage your favorite lists.</p>
-        <div class="welcome-suggestions">
-            <button class="suggestion-btn" data-message="What movies are popular right now?">Popular movies</button>
-            <button class="suggestion-btn" data-message="Create a list of sci-fi movies">Create a list</button>
-            <button class="suggestion-btn" data-message="Recommend me a comedy movie">Comedy recommendation</button>
-        </div>
-    `;
-    chatMessages.appendChild(welcomeMessage);
     
     // Switch back to login screen
     chatScreen.classList.remove('active');

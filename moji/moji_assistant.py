@@ -142,7 +142,7 @@ class MojiAssistant:
         )
         
         # Start the session
-        session = agentloop.start_session(assistant, session_id)
+        session = agentloop.start_session(assistant, session_id, user_id=self.user_id)
         
         return session
     

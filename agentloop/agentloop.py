@@ -271,13 +271,14 @@ def _prepare_api_call(
     return api_params, formatted_message
 
 
-def start_session(assistant: Dict[str, Any], session_id: str) -> Dict[str, Any]:
+def start_session(assistant: Dict[str, Any], session_id: str, user_id:str = None) -> Dict[str, Any]:
     """
     Start or resume a session with the given assistant.
     
     Args:
         assistant: Assistant configuration from create_assistant
         session_id: Unique identifier for the session
+        user_id: Optional user identifier
         
     Returns:
         Session dictionary with assistant and memory
@@ -285,10 +286,12 @@ def start_session(assistant: Dict[str, Any], session_id: str) -> Dict[str, Any]:
     # Create new session with just essential information
     session = {
         "session_id": session_id,
+        "user_id": user_id,
         "assistant": assistant,
         "created_at": datetime.datetime.now().isoformat(),
         "updated_at": datetime.datetime.now().isoformat(),
-        "metadata": {}
+        "metadata": {},
+        "memory": None
     }
     
     # Initialize memory for this session with the session ID
@@ -301,7 +304,7 @@ def start_session(assistant: Dict[str, Any], session_id: str) -> Dict[str, Any]:
     
     # Initialize Mem4AI directly
     mem = Mem4AI(memory_db_path)
-    mem.load(user_id=session_id)
+    mem.load_session(session_id=session_id, user_id=user_id)
     session["memory"] = mem
     
     return session

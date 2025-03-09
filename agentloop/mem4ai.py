@@ -43,8 +43,7 @@ class Mem4AI:
                     session_id TEXT PRIMARY KEY,
                     user_id TEXT,
                     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-                    last_active DATETIME,
-                    is_active BOOLEAN
+                    last_active DATETIME
                 )''')
             
             # Messages with chunk indexing
@@ -74,29 +73,73 @@ class Mem4AI:
                 CREATE INDEX IF NOT EXISTS idx_timestamp 
                 ON messages(timestamp)''')
 
-    def load(self, user_id: str) -> str:
-        """Load or create a new session"""
+    def load_session(self, session_id: str, user_id: str = None) -> str:
+        """
+        Load or create a session using the session_id
+        
+        Args:
+            session_id: The unique identifier for the session
+            user_id: Optional user identifier (required for new sessions)
+            
+        Returns:
+            Session ID that was loaded or created
+        """
         conn = self._get_connection()
         
-        # Check for existing active session
+        # First check if the session exists at all, regardless of timeout
         cursor = conn.execute('''
             SELECT session_id FROM sessions 
-            WHERE user_id = ? AND is_active = 1 
+            WHERE session_id = ?
+        ''', (session_id,))
+        
+        session_exists = cursor.fetchone() is not None
+        
+        # Now check if it's an active session within the timeout window
+        cursor = conn.execute('''
+            SELECT session_id FROM sessions 
+            WHERE session_id = ? 
             AND datetime(last_active, ?) > datetime('now')
-            ORDER BY last_active DESC LIMIT 1
-        ''', (user_id, f'+{self.session_timeout} seconds'))
+        ''', (session_id, f'+{self.session_timeout} seconds'))
         
         if row := cursor.fetchone():
+            # Session exists and is active
             self.active_session_id = row[0]
-        else:
-            # Create new session
-            self.active_session_id = f"sess_{datetime.datetime.now().timestamp()}"
+            
+            # Update last_active timestamp
             with conn:
                 conn.execute('''
-                    INSERT INTO sessions 
-                    (session_id, user_id, last_active, is_active)
-                    VALUES (?, ?, datetime('now'), 1)
-                ''', (self.active_session_id, user_id))
+                    UPDATE sessions SET last_active = datetime('now')
+                    WHERE session_id = ?
+                ''', (self.active_session_id,))
+        else:
+            # Create or update session - user_id is required for new sessions
+            if not user_id and not session_exists:
+                raise ValueError("user_id is required when creating a new session")
+            
+            self.active_session_id = session_id
+            with conn:
+                if session_exists:
+                    # Update existing session
+                    update_params = [datetime.datetime.now().isoformat(), session_id]
+                    if user_id:  # Only update user_id if provided
+                        conn.execute('''
+                            UPDATE sessions 
+                            SET last_active = ?, user_id = ?
+                            WHERE session_id = ?
+                        ''', (update_params[0], user_id, session_id))
+                    else:
+                        conn.execute('''
+                            UPDATE sessions 
+                            SET last_active = ?
+                            WHERE session_id = ?
+                        ''', update_params)
+                else:
+                    # Insert new session
+                    conn.execute('''
+                        INSERT INTO sessions 
+                        (session_id, user_id, last_active)
+                        VALUES (?, ?, datetime('now'))
+                    ''', (self.active_session_id, user_id))
             
         return self.active_session_id
 
@@ -158,7 +201,7 @@ class Mem4AI:
         
         # Get short-term memory (70% allocation)
         short_term_max = int(usable_tokens * 0.7)
-        short_term = self._get_session_messages(token_limit=short_term_max)
+        short_term = self.get_session_messages(token_limit=short_term_max)
         
         # Get middle-term memory (30% allocation)
         middle_term_max = usable_tokens - sum(m['tokens'] for m in short_term)
@@ -241,7 +284,7 @@ class Mem4AI:
         
         return results
 
-    def _get_session_messages(self, token_limit: int) -> List[Dict]:
+    def get_session_messages(self, token_limit: int) -> List[Dict]:
         """Retrieve recent session messages within token limit"""
         conn = self._get_connection()
         messages = []
@@ -272,7 +315,7 @@ class Mem4AI:
                 m['metadata'] = eval(m['metadata'])
 
         return messages
-
+    
     def close(self):
         """Close database connection"""
         if hasattr(self.thread_local, 'conn'):
@@ -362,25 +405,22 @@ class Mem4AI:
             print(f"Error clearing memory: {str(e)}")
             return False
 
-# Example usage
+    def clear_all(self):
+        """Clear all memory entries"""
+        conn = self._get_connection()
+        with conn:
+            conn.execute("DELETE FROM messages")
+            conn.execute("DELETE FROM messages_fts")
+            conn.execute("DELETE FROM sessions")
+        return True 
+
+
+# Usage
 if __name__ == "__main__":
-    memory = Mem4AI("/Users/unclecode/.agentloop/memory.db")
-    
-    # Start a session
-    session_id = memory.load(user_id="user123")
-    
-    # Add conversation
-    memory.add_memory("Hello!", "user", {"location": "Paris"})
-    memory.add_memory("Hi there!", "assistant")
-    
-    # Build context
-    context = memory.build_context("What's the weather like?", max_tokens=2000)
-    print(f"Context length: {sum(m['tokens'] for m in context)} tokens")
-    
-    # Search memory
-    results = memory.search_memory(
-        "Paris",
-        metadata_filter={"location": "Paris"},
-        time_range=(datetime.datetime(2023, 1, 1), datetime.datetime.now())
-    )
-    print(f"Found {len(results)} relevant memories")
+    # Clear all memory
+    mem4ai = Mem4AI("memory.db")
+    success = mem4ai.clear_all()
+    if success:
+        print("All memory entries cleared successfully.")
+    else:
+        print("Failed to clear memory entries.")

@@ -5,10 +5,12 @@ import traceback
 from datetime import datetime
 from typing import Optional, Dict, Any
 
+import agentloop.mem4ai
+
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
-from flask import Flask, request, jsonify, render_template, Response, stream_with_context
+from flask import Flask, request, jsonify, render_template, Response, session, stream_with_context
 from flask_cors import CORS
 import agentloop
 
@@ -209,6 +211,42 @@ def chat():
             "response": result
         })
     except Exception as e:
+        return jsonify({
+            "success": False, 
+            "error": str(e)
+        }), 500
+
+@app.route('/api/history', methods=['GET'])
+def get_conversation_history():
+    """Retrieve conversation history for a user"""
+    user_id = request.args.get('user_id')
+    user_token = request.args.get('user_token')
+    
+    if not user_id or not user_token:
+        return jsonify({"success": False, "error": "Missing required parameters"}), 400
+    
+    try:
+        # Get assistant for this user
+        assistant = get_assistant(user_id, user_token)
+
+        session = assistant.session
+        if not session:
+            return jsonify({
+                "success": False,
+                "error": "No active session found"
+            }), 404
+        # Get the memory object directly from the assistant's session
+        memory : agentloop.mem4ai.Mem4AI = session.get("memory")
+        
+        # Get the messages from the memory object
+        formatted_messages = memory.get_session_messages(token_limit=1e6)
+        
+        return jsonify({
+            "success": True,
+            "messages": formatted_messages
+        })
+    except Exception as e:
+        print(f"Error retrieving conversation history: {str(e)}")
         return jsonify({
             "success": False, 
             "error": str(e)

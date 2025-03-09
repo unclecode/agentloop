@@ -17,7 +17,7 @@ def test_mem4ai():
 
     # Test 1: Create a new session and add messages
     print("=== Test 1: New Session ===")
-    session_id_1 = memory.load(user_id="user123")
+    session_id_1 = memory.load_session(user_id="user123")
     print(f"Session ID: {session_id_1}")
     memory.add_memory("Hello!", "user", {"location": "Paris"})
     memory.add_memory("Hi there! How can I help you?", "assistant")
@@ -35,7 +35,7 @@ def test_mem4ai():
     # Test 3: Simulate a new session after timeout
     print("\n=== Test 3: New Session After Timeout ===")
     time.sleep(35)  # Wait for session timeout
-    session_id_2 = memory.load(user_id="user123")
+    session_id_2 = memory.load_session(user_id="user123")
     memory.add_memory("Hello again!", "user", {"location": "Berlin"})
     memory.add_memory("Hi! What can I do for you?", "assistant")
     memory.add_memory("What's the weather like in Berlin?", "user", {"intent": "weather"})
