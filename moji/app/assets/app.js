@@ -27,6 +27,7 @@ const cancelClearBtn = document.getElementById('cancel-clear-btn');
 const state = {
     userId: null,
     userToken: null,
+    userProfile: null,
     isAuthenticated: false,
     isProcessing: false,
     currentResponse: '',
@@ -69,10 +70,20 @@ function init() {
     // Check if user is already logged in (via localStorage)
     const savedUserId = localStorage.getItem('mojiUserId');
     const savedUserToken = localStorage.getItem('mojiUserToken');
+    const savedUserProfile = localStorage.getItem('mojiUserProfile');
     
     if (savedUserId && savedUserToken) {
         state.userId = savedUserId;
         state.userToken = savedUserToken;
+        
+        // Try to parse the user profile
+        try {
+            state.userProfile = savedUserProfile ? JSON.parse(savedUserProfile) : {};
+        } catch (e) {
+            state.userProfile = {};
+            console.error('Failed to parse saved user profile:', e);
+        }
+        
         authenticateUser();
     }
     
@@ -112,13 +123,15 @@ async function handleLogin(e) {
             throw new Error(data.error || 'Authentication failed');
         }
         
-        // Store credentials
+        // Store credentials and user profile
         state.userId = data.user_id;
         state.userToken = data.user_token;
+        state.userProfile = data.user_profile || {};
         
         // Save to localStorage
         localStorage.setItem('mojiUserId', state.userId);
         localStorage.setItem('mojiUserToken', state.userToken);
+        localStorage.setItem('mojiUserProfile', JSON.stringify(state.userProfile));
         
         // Change to chat screen
         switchToChatScreen();
@@ -168,7 +181,7 @@ async function handleSendMessage(e) {
     const typingIndicator = addTypingIndicator();
     
     try {
-        // Use the streaming API
+        // Use the streaming API with user profile
         await processStreamingMessage(message, typingIndicator);
     } catch (error) {
         console.error('Error sending message:', error);
@@ -216,7 +229,18 @@ function processStreamingMessage(message, typingIndicator) {
 
         // Use a single GET request with query parameters for streaming
         const encodedMessage = encodeURIComponent(message);
-        const streamUrl = `/api/chat/stream?user_id=${state.userId}&user_token=${state.userToken}&message=${encodedMessage}`;
+        
+        // Encode user profile for the stream URL
+        let encodedUserProfile = '{}';
+        if (state.userProfile) {
+            try {
+                encodedUserProfile = encodeURIComponent(JSON.stringify(state.userProfile));
+            } catch (e) {
+                console.error('Failed to encode user profile:', e);
+            }
+        }
+        
+        const streamUrl = `/api/chat/stream?user_id=${state.userId}&user_token=${state.userToken}&message=${encodedMessage}&user_profile=${encodedUserProfile}`;
         
         console.log('Establishing SSE connection with message data');
         
@@ -402,6 +426,7 @@ async function handleClearMemory() {
             body: JSON.stringify({
                 user_id: state.userId,
                 user_token: state.userToken,
+                user_profile: state.userProfile,
                 reset_all: false
             })
         });
@@ -512,10 +537,12 @@ function handleLogout() {
     // Clear local storage
     localStorage.removeItem('mojiUserId');
     localStorage.removeItem('mojiUserToken');
+    localStorage.removeItem('mojiUserProfile');
     
     // Reset state
     state.userId = null;
     state.userToken = null;
+    state.userProfile = null;
     state.isAuthenticated = false;
     
     // Clear UI

@@ -33,15 +33,15 @@ db = client[DB_NAME]
 # Dictionary to store active assistant instances
 active_assistants = {}
 
-def get_user_token(email: str) -> tuple[Optional[str], Optional[str]]:
+def get_user_token(email: str) -> tuple[Optional[str], Optional[str], Optional[dict]]:
     """
-    Get user token and ID from email address.
+    Get user token, ID, and profile from email address.
     
     Args:
         email: User's email address
         
     Returns:
-        Tuple of (user_token, user_id) or (None, None) if not found
+        Tuple of (user_token, user_id, user_profile) or (None, None, None) if not found
     """
     user = db.users.find_one({
         "email": email,
@@ -49,24 +49,58 @@ def get_user_token(email: str) -> tuple[Optional[str], Optional[str]]:
         "user_token": {"$exists": True, "$ne": ""}
     })
     if user:
-        return user.get('user_token'), user.get('user_id')
-    return None, None
+        # Extract necessary user profile information
+        user_profile = {
+            "dob": user.get('dob'),
+            "full_name": user.get('full_name'),
+            "gender": user.get('gender')
+        }
+        
+        # Check for swipe profile and favorite genres
+        if 'swipe_user_profile' in user and user['swipe_user_profile']:
+            swipe_profile = user['swipe_user_profile']
+            if 'favorite_genre' in swipe_profile and swipe_profile['favorite_genre']:
+                user_profile['favorite_genre'] = swipe_profile['favorite_genre']
+        
+        return user.get('user_token'), user.get('user_id'), user_profile
+    return None, None, None
 
-def get_assistant(user_id: str, user_token: str) -> MojiAssistant:
+def get_assistant(user_id: str, user_token: str, user_profile: dict = None) -> MojiAssistant:
     """
     Get or create a MojiAssistant instance for a user.
     
     Args:
         user_id: User ID
         user_token: User auth token
+        user_profile: User profile information including dob, full_name, gender, and favorite_genre
         
     Returns:
         MojiAssistant instance
     """
+    # If user profile is None, initialize as empty dict
+    if user_profile is None:
+        user_profile = {}
+    
     # Check if we already have an active assistant for this user
     if user_id in active_assistants:
-        return active_assistants[user_id]
-        
+        # If we have a valid user profile, update the existing assistant
+        if user_profile:
+            # Update the assistant with the new profile - for now we'll recreate it
+            pass
+        else:
+            return active_assistants[user_id]
+    
+    # Prepare user details for assistant
+    user_details = {
+        "name": user_profile.get("full_name", "User"),
+        "dob": user_profile.get("dob"),
+        "gender": user_profile.get("gender")
+    }
+    
+    # Add favorite_genre if available
+    if "favorite_genre" in user_profile:
+        user_details["favorite_genre"] = user_profile.get("favorite_genre")
+    
     # Create a new assistant
     assistant = MojiAssistant(
         user_id=user_id,
@@ -74,9 +108,7 @@ def get_assistant(user_id: str, user_token: str) -> MojiAssistant:
         model_id=MODELS.get("openai_4o", "gpt-4o"),
         action="assistant",
         params={
-            "user_details": {
-                "name": "User" # Could fetch from database if needed
-            }
+            "user_details": user_details
         },
         verbose=True,
         remember_tool_calls=True,
@@ -142,15 +174,16 @@ def authenticate():
     if not email:
         return jsonify({"success": False, "error": "Email is required"}), 400
     
-    # Get user token and ID
-    user_token, user_id = get_user_token(email)
+    # Get user token, ID, and profile
+    user_token, user_id, user_profile = get_user_token(email)
     if not user_token or not user_id:
         return jsonify({"success": False, "error": "User not found or not authorized"}), 404
     
     return jsonify({
         "success": True, 
         "user_id": user_id,
-        "user_token": user_token
+        "user_token": user_token,
+        "user_profile": user_profile
     })
 
 @app.route('/api/chat', methods=['POST'])
@@ -159,13 +192,14 @@ def chat():
     user_id = request.json.get('user_id')
     user_token = request.json.get('user_token')
     message = request.json.get('message')
+    user_profile = request.json.get('user_profile', {})
     
     if not user_id or not user_token or not message:
         return jsonify({"success": False, "error": "Missing required parameters"}), 400
     
     try:
-        # Get assistant for this user
-        assistant = get_assistant(user_id, user_token)
+        # Get assistant for this user with user profile
+        assistant = get_assistant(user_id, user_token, user_profile)
         
         # Process message
         result = assistant.chat(message)
@@ -187,6 +221,13 @@ def chat_stream():
     user_id = request.args.get('user_id')
     user_token = request.args.get('user_token')
     message = request.args.get('message')
+    user_profile_json = request.args.get('user_profile', '{}')
+    
+    # Parse user profile JSON if provided
+    try:
+        user_profile = json.loads(user_profile_json) if user_profile_json else {}
+    except json.JSONDecodeError:
+        user_profile = {}
     
     # If no message, this is just establishing a connection
     if not message or not user_id or not user_token:
@@ -214,8 +255,8 @@ def chat_stream():
             # Log for debugging
             print(f"Processing streaming message for user {user_id}")
             
-            # Get assistant for this user
-            assistant = get_assistant(user_id, user_token)
+            # Get assistant for this user with user profile
+            assistant = get_assistant(user_id, user_token, user_profile)
             
             # Process message with streaming
             for stream_event in assistant.chat_stream(message):
@@ -246,6 +287,7 @@ def clear_memory():
     """Clear the memory for a user's session"""
     user_id = request.json.get('user_id')
     user_token = request.json.get('user_token')
+    user_profile = request.json.get('user_profile', {})
     reset_all = request.json.get('reset_all', False)
     
     if not user_id or not user_token:
@@ -258,7 +300,7 @@ def clear_memory():
             result = assistant.clear_memory(reset_all=reset_all)
             
             # Recreate the assistant to ensure a fresh state
-            active_assistants[user_id] = get_assistant(user_id, user_token)
+            active_assistants[user_id] = get_assistant(user_id, user_token, user_profile)
             
             return jsonify({
                 "success": True,
