@@ -6,11 +6,9 @@ and manages user favorite lists.
 """
 
 import os
-import sys
 import json
 import importlib
-import inspect
-from typing import Dict, List, Any, Optional, Callable, Union
+from typing import Dict, Any, Optional, Union
 from glob import glob
 
 # Import agentloop components
@@ -209,6 +207,34 @@ You can provide recommendations, information, or help manage their favorite list
         
         # Convert the response to the expected format
         return self._format_response(result)
+        
+    def chat_stream(self, message: Union[str, Dict[str, Any]]):
+        """
+        Process a user message and generate a streaming response.
+        
+        Args:
+            message: User message (text or dictionary with text/image)
+            
+        Yields:
+            Streaming event dictionaries from agentloop
+        """
+        # Process the message using agentloop with streaming and context_data for credentials
+        for stream_event in agentloop.streamed_process_message(
+            self.session,
+            message,
+            context=self._get_context(),
+            context_data={
+                "user_id": self.user_id,
+                "user_token": self.user_token
+            }
+        ):
+            # For 'finish' events, format the final response
+            if stream_event['type'] == 'finish':
+                stream_event['data']['formatted_response'] = self._format_response({
+                    "response": stream_event['data']['response']
+                })
+                
+            yield stream_event
     
     def _get_context(self) -> str:
         """
@@ -343,3 +369,4 @@ You can provide recommendations, information, or help manage their favorite list
                 print(f"Failed to clear memory for session {session_id}")
                 
         return result
+
