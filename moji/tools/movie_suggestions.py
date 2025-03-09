@@ -2,7 +2,7 @@
 Tool for suggesting movies based on user requests and preferences.
 """
 import json
-from typing import List, Dict, Any, Optional
+from typing import List, Optional
 from pydantic import BaseModel
 from openai import OpenAI
 

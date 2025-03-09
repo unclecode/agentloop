@@ -2,7 +2,7 @@
 Tools for managing favorite movie lists in the Moji app.
 """
 import json
-from typing import Dict, List, Any, Optional
+from typing import Dict, List, Any
 import os
 import sys
 

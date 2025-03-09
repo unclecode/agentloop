@@ -4,7 +4,6 @@ Uses a knowledge base to provide accurate information about app features and usa
 """
 import json
 import os
-from typing import Dict, Any, List
 from openai import OpenAI
 
 # Response model for the app support assistant

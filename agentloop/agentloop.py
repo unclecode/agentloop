@@ -538,7 +538,6 @@ def streamed_process_message(
     collected_content = []
     assistant_message = None
     tool_calls = []
-    current_tool_call = None
     
     # Process the initial streaming response
     for chunk in response_stream:
