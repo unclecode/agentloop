@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Moji Assistant</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
+    <link rel="stylesheet" href="/assets/app.css">
+    <!-- Marked.js for Markdown rendering -->
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+</head>
+<body>
+    <div class="app-container">
+        <!-- Login Screen -->
+        <div id="login-screen" class="screen active">
+            <div class="login-container">
+                <div class="logo">
+                    <i class="fas fa-film"></i>
+                    <h1>Moji Assistant</h1>
+                </div>
+                <p class="subtitle">Your AI movie companion</p>
+                
+                <form id="login-form">
+                    <div class="input-group">
+                        <input type="email" id="email" placeholder="Enter your email" required>
+                        <button type="submit" id="login-button">
+                            <i class="fas fa-arrow-right"></i>
+                        </button>
+                    </div>
+                    <div id="login-error" class="error-message"></div>
+                </form>
+                
+                <div class="login-spinner" id="login-spinner">
+                    <i class="fas fa-spinner fa-spin"></i>
+                    <span>Authenticating...</span>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Chat Screen -->
+        <div id="chat-screen" class="screen">
+            <div class="chat-header">
+                <div class="user-info">
+                    <i class="fas fa-film"></i>
+                    <h2>Moji Assistant</h2>
+                </div>
+                <div class="header-actions">
+                    <button id="clear-memory-btn" title="Clear conversation memory">
+                        <i class="fas fa-trash"></i>
+                    </button>
+                    <button id="report-bug-btn" title="Report a bug">
+                        <i class="fas fa-bug"></i>
+                    </button>
+                    <button id="logout-btn" title="Logout">
+                        <i class="fas fa-sign-out-alt"></i>
+                    </button>
+                </div>
+            </div>
+            
+            <main>
+                <div class="chat-messages" id="chat-messages">
+                    <div class="welcome-message">
+                        <h3>Welcome to Moji Assistant!</h3>
+                        <p>I'm your movie companion. Ask me about movies, recommendations, or manage your favorite lists.</p>
+                        <div class="welcome-suggestions">
+                            <button class="suggestion-btn" data-message="What movies are popular right now?">Popular movies</button>
+                            <button class="suggestion-btn" data-message="Create a list of sci-fi movies">Create a list</button>
+                            <button class="suggestion-btn" data-message="Recommend me a comedy movie">Comedy recommendation</button>
+                        </div>
+                    </div>
+                </div>
+            </main>
+            
+            <div class="chat-input-container">
+                <form id="message-form">
+                    <div class="input-group">
+                        <input type="text" id="message-input" placeholder="Type your message..." autocomplete="off">
+                        <button type="submit" id="send-button" disabled>
+                            <i class="fas fa-arrow-up"></i>
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+        
+        <!-- Modal for Bug Reports -->
+        <div id="bug-modal" class="modal">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h3>Report a Bug</h3>
+                    <button id="close-modal-btn">&times;</button>
+                </div>
+                <div class="modal-body">
+                    <p>Please describe the issue you're experiencing:</p>
+                    <textarea id="bug-description" rows="4" placeholder="Describe what happened..."></textarea>
+                    
+                    <div class="modal-actions">
+                        <button id="submit-bug-btn">Submit Report</button>
+                        <button id="cancel-bug-btn">Cancel</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Modal for Memory Clear Confirmation -->
+        <div id="clear-memory-modal" class="modal">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h3>Clear Conversation</h3>
+                    <button id="close-clear-modal-btn">&times;</button>
+                </div>
+                <div class="modal-body">
+                    <p>Are you sure you want to clear your conversation history?</p>
+                    
+                    <div class="modal-actions">
+                        <button id="confirm-clear-btn">Yes, Clear It</button>
+                        <button id="cancel-clear-btn">Cancel</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="/assets/app.js"></script>
+</body>
+</html>

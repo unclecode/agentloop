@@ -2,28 +2,43 @@ import sqlite3
 from sqlite3 import Connection
 import datetime
 import tiktoken
-from typing import List, Tuple, Dict, Optional
+import threading
+from typing import List, Tuple, Dict, Optional, Any
 
 class Mem4AI:
+    _instances = {}
+    _lock = threading.RLock()
+    
     def __init__(self, db_path: str, context_window: int = 4096, 
                  session_timeout: int = 1800, chunk_gap: int = 600,
                  safety_buffer: float = 0.2):
         self.db_path = db_path
-        # If file does not exist, it will be created
-        self.conn = sqlite3.connect(db_path)
         self.context_window = context_window
         self.session_timeout = session_timeout  # Seconds
         self.chunk_gap = chunk_gap  # Seconds between chunks
         self.safety_buffer = safety_buffer
         self.tokenizer = tiktoken.get_encoding("cl100k_base")
         
-        self._init_db()
+        # Use thread-local connections
+        self.thread_local = threading.local()
+        
+        # Initialize DB if needed
+        with self._get_connection() as conn:
+            self._init_db(conn)
+        
         self.active_session_id = None
 
-    def _init_db(self):
-        with self.conn:
+    def _get_connection(self) -> Connection:
+        """Get a thread-local SQLite connection."""
+        if not hasattr(self.thread_local, 'conn'):
+            self.thread_local.conn = sqlite3.connect(self.db_path)
+        return self.thread_local.conn
+        
+    def _init_db(self, conn: Connection):
+        """Initialize the database with required tables."""
+        with conn:
             # Sessions table
-            self.conn.execute('''
+            conn.execute('''
                 CREATE TABLE IF NOT EXISTS sessions (
                     session_id TEXT PRIMARY KEY,
                     user_id TEXT,
@@ -33,7 +48,7 @@ class Mem4AI:
                 )''')
             
             # Messages with chunk indexing
-            self.conn.execute('''
+            conn.execute('''
                 CREATE TABLE IF NOT EXISTS messages (
                     message_id INTEGER PRIMARY KEY,
                     session_id TEXT,
@@ -47,22 +62,24 @@ class Mem4AI:
                 )''')
             
             # Full-text search virtual table
-            self.conn.execute('''
+            conn.execute('''
                 CREATE VIRTUAL TABLE IF NOT EXISTS messages_fts 
                 USING fts5(content, session_id, metadata, role)''')
             
             # Indexes
-            self.conn.execute('''
+            conn.execute('''
                 CREATE INDEX IF NOT EXISTS idx_session_chunk 
                 ON messages(session_id, chunk_index)''')
-            self.conn.execute('''
+            conn.execute('''
                 CREATE INDEX IF NOT EXISTS idx_timestamp 
                 ON messages(timestamp)''')
 
     def load(self, user_id: str) -> str:
         """Load or create a new session"""
+        conn = self._get_connection()
+        
         # Check for existing active session
-        cursor = self.conn.execute('''
+        cursor = conn.execute('''
             SELECT session_id FROM sessions 
             WHERE user_id = ? AND is_active = 1 
             AND datetime(last_active, ?) > datetime('now')
@@ -74,12 +91,12 @@ class Mem4AI:
         else:
             # Create new session
             self.active_session_id = f"sess_{datetime.datetime.now().timestamp()}"
-            self.conn.execute('''
-                INSERT INTO sessions 
-                (session_id, user_id, last_active, is_active)
-                VALUES (?, ?, datetime('now'), 1)
-            ''', (self.active_session_id, user_id))
-            self.conn.commit()
+            with conn:
+                conn.execute('''
+                    INSERT INTO sessions 
+                    (session_id, user_id, last_active, is_active)
+                    VALUES (?, ?, datetime('now'), 1)
+                ''', (self.active_session_id, user_id))
             
         return self.active_session_id
 
@@ -88,6 +105,8 @@ class Mem4AI:
         if not self.active_session_id:
             raise ValueError("No active session - call load() first")
         
+        conn = self._get_connection()
+        
         # Calculate tokens
         tokens = len(self.tokenizer.encode(message))
         
@@ -95,7 +114,7 @@ class Mem4AI:
         chunk_index = 0
         if role == 'user':
             # Get last assistant message in this session
-            cursor = self.conn.execute('''
+            cursor = conn.execute('''
                 SELECT timestamp, chunk_index FROM messages
                 WHERE session_id = ? AND role = 'assistant'
                 ORDER BY timestamp DESC LIMIT 1
@@ -107,28 +126,27 @@ class Mem4AI:
                 chunk_index = row[1] + 1 if time_diff > self.chunk_gap else row[1]
         
         # Insert message
-        self.conn.execute('''
-            INSERT INTO messages 
-            (session_id, chunk_index, role, content, tokens, metadata)
-            VALUES (?, ?, ?, ?, ?, ?)
-        ''', (
-            self.active_session_id,
-            chunk_index,
-            role,
-            message,
-            tokens,
-            str(metadata) if metadata else None
-        ))
-        
-        # Update FTS
-        self.conn.execute('''
-            INSERT INTO messages_fts 
-            (rowid, content, session_id, metadata, role)
-            VALUES (last_insert_rowid(), ?, ?, ?, ?)
-        ''', (message, self.active_session_id, 
-              str(metadata) if metadata else '', role))
-        
-        self.conn.commit()
+        with conn:
+            conn.execute('''
+                INSERT INTO messages 
+                (session_id, chunk_index, role, content, tokens, metadata)
+                VALUES (?, ?, ?, ?, ?, ?)
+            ''', (
+                self.active_session_id,
+                chunk_index,
+                role,
+                message,
+                tokens,
+                str(metadata) if metadata else None
+            ))
+            
+            # Update FTS
+            conn.execute('''
+                INSERT INTO messages_fts 
+                (rowid, content, session_id, metadata, role)
+                VALUES (last_insert_rowid(), ?, ?, ?, ?)
+            ''', (message, self.active_session_id, 
+                  str(metadata) if metadata else '', role))
 
     def build_context(self, user_query: str, max_tokens: int = None) -> Dict[str, List[Dict]]:
         """
@@ -200,9 +218,10 @@ class Mem4AI:
             {limit_clause}
         '''
         
+        conn = self._get_connection()
         results = []
         total_tokens = 0
-        for row in self.conn.execute(sql, params):
+        for row in conn.execute(sql, params):
             if limit_tokens and (total_tokens + row[2]) > limit_tokens:
                 break
             
@@ -224,10 +243,11 @@ class Mem4AI:
 
     def _get_session_messages(self, token_limit: int) -> List[Dict]:
         """Retrieve recent session messages within token limit"""
+        conn = self._get_connection()
         messages = []
         total_tokens = 0
         
-        cursor = self.conn.execute('''
+        cursor = conn.execute('''
             SELECT content, role, tokens, metadata, timestamp
             FROM messages
             WHERE session_id = ?
@@ -255,7 +275,8 @@ class Mem4AI:
 
     def close(self):
         """Close database connection"""
-        self.conn.close()
+        if hasattr(self.thread_local, 'conn'):
+            self.thread_local.conn.close()
         
     def clear_memory(self, session_id: Optional[str] = None, agent_id: Optional[str] = None, user_id: Optional[str] = None) -> bool:
         """
@@ -278,8 +299,9 @@ class Mem4AI:
                 conditions.append("session_id = ?")
                 params.append(session_id)
                 
+            conn = self._get_connection()
             if user_id:
-                cursor = self.conn.execute(
+                cursor = conn.execute(
                     "SELECT session_id FROM sessions WHERE user_id = ?", 
                     (user_id,)
                 )
@@ -298,12 +320,12 @@ class Mem4AI:
                 return False
                 
             # Remove from messages and FTS
-            with self.conn:
+            with conn:
                 # Delete from messages table
                 where_clause = " AND ".join(conditions)
                 
                 # First delete from FTS (which links to rowid)
-                cursor = self.conn.execute(
+                cursor = conn.execute(
                     f"SELECT rowid FROM messages WHERE {where_clause}", 
                     params
                 )
@@ -312,25 +334,25 @@ class Mem4AI:
                 if message_ids:
                     # Delete from FTS using rowids
                     placeholders = ", ".join(["?"] * len(message_ids))
-                    self.conn.execute(
+                    conn.execute(
                         f"DELETE FROM messages_fts WHERE rowid IN ({placeholders})",
                         message_ids
                     )
                 
                 # Delete from messages
-                self.conn.execute(
+                conn.execute(
                     f"DELETE FROM messages WHERE {where_clause}",
                     params
                 )
                 
                 # If session_id is specified, also clean up the sessions table
                 if session_id:
-                    self.conn.execute(
+                    conn.execute(
                         "DELETE FROM sessions WHERE session_id = ?",
                         (session_id,)
                     )
                 elif user_id:
-                    self.conn.execute(
+                    conn.execute(
                         "DELETE FROM sessions WHERE user_id = ?",
                         (user_id,)
                     )
