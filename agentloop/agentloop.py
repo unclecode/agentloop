@@ -5,10 +5,8 @@ Provides assistant creation, session management, and message processing.
 
 import os
 import json
-import inspect
 import datetime
-from typing import List, Dict, Any, Optional, Callable, Union
-
+from typing import List, Dict, Any, Optional, Callable, Union, Tuple
 
 from . import utils
 from .mem4ai import Mem4AI  # Import the memory implementation directly
@@ -142,54 +140,17 @@ def create_assistant(
     return assistant
 
 
-def start_session(assistant: Dict[str, Any], session_id: str) -> Dict[str, Any]:
-    """
-    Start or resume a session with the given assistant.
-    
-    Args:
-        assistant: Assistant configuration from create_assistant
-        session_id: Unique identifier for the session
-        
-    Returns:
-        Session dictionary with assistant and memory
-    """
-    # Create new session with just essential information
-    session = {
-        "session_id": session_id,
-        "assistant": assistant,
-        "created_at": datetime.datetime.now().isoformat(),
-        "updated_at": datetime.datetime.now().isoformat(),
-        "metadata": {}
-    }
-    
-    # Initialize memory for this session with the session ID
-    # Create path to memory database
-    home_dir = os.path.expanduser("~")
-    memory_db_path = os.path.join(home_dir, ".agentloop", "memory.db")
-    
-    # Ensure directory exists
-    os.makedirs(os.path.dirname(memory_db_path), exist_ok=True)
-    
-    # Initialize Mem4AI directly
-    mem = Mem4AI(memory_db_path)
-    mem.load(user_id=session_id)
-    session["memory"] = mem
-    
-    return session
-
-
-def process_message(
+def _prepare_api_call(
     session: Dict[str, Any],
     message: Union[str, Dict[str, Any]],
     user_template: Optional[str] = None,
     template_params: Dict[str, Any] = {},
     context: Optional[Union[str, List[Dict[str, Any]]]] = None,
     schema: Optional[Dict[str, Any]] = None,
-    token_callback: Optional[Callable[[Dict[str, int]], None]] = None,
-    context_data: Dict[str, Any] = None
-) -> Dict[str, Any]:
+    stream: bool = False
+) -> Tuple[Dict[str, Any], str]:
     """
-    Process a user message in the given session.
+    Helper function to prepare messages and API parameters for OpenAI calls.
     
     Args:
         session: Session dictionary from start_session
@@ -198,14 +159,13 @@ def process_message(
         template_params: Variables to render the template
         context: Additional context to include
         schema: JSON schema for structured output
-        token_callback: Function to call with token usage statistics
-        context_data: Additional data to pass to tools (not part of conversation)
+        stream: Whether to enable streaming mode
         
     Returns:
-        Dictionary with response and usage statistics
+        Tuple containing:
+        - Dictionary of API parameters to pass to OpenAI
+        - Formatted user message for memory storage
     """
-    import openai
-    
     assistant = session["assistant"]
     memtor : Mem4AI = session.get("memory")
     
@@ -290,6 +250,10 @@ def process_message(
         "messages": messages
     }
     
+    # Add stream parameter if requested
+    if stream:
+        api_params["stream"] = True
+    
     # Add tools if available
     if assistant.get("tools"):
         api_params["tools"] = assistant["tools"]
@@ -303,6 +267,80 @@ def process_message(
     
     # Add additional parameters
     api_params.update(assistant.get("params", {}))
+    
+    return api_params, formatted_message
+
+
+def start_session(assistant: Dict[str, Any], session_id: str) -> Dict[str, Any]:
+    """
+    Start or resume a session with the given assistant.
+    
+    Args:
+        assistant: Assistant configuration from create_assistant
+        session_id: Unique identifier for the session
+        
+    Returns:
+        Session dictionary with assistant and memory
+    """
+    # Create new session with just essential information
+    session = {
+        "session_id": session_id,
+        "assistant": assistant,
+        "created_at": datetime.datetime.now().isoformat(),
+        "updated_at": datetime.datetime.now().isoformat(),
+        "metadata": {}
+    }
+    
+    # Initialize memory for this session with the session ID
+    # Create path to memory database
+    home_dir = os.path.expanduser("~")
+    memory_db_path = os.path.join(home_dir, ".agentloop", "memory.db")
+    
+    # Ensure directory exists
+    os.makedirs(os.path.dirname(memory_db_path), exist_ok=True)
+    
+    # Initialize Mem4AI directly
+    mem = Mem4AI(memory_db_path)
+    mem.load(user_id=session_id)
+    session["memory"] = mem
+    
+    return session
+
+
+def process_message(
+    session: Dict[str, Any],
+    message: Union[str, Dict[str, Any]],
+    user_template: Optional[str] = None,
+    template_params: Dict[str, Any] = {},
+    context: Optional[Union[str, List[Dict[str, Any]]]] = None,
+    schema: Optional[Dict[str, Any]] = None,
+    token_callback: Optional[Callable[[Dict[str, int]], None]] = None,
+    context_data: Dict[str, Any] = None
+) -> Dict[str, Any]:
+    """
+    Process a user message in the given session.
+    
+    Args:
+        session: Session dictionary from start_session
+        message: Text message or dict with text and image_url for vision
+        user_template: Jinja2 template for the user message
+        template_params: Variables to render the template
+        context: Additional context to include
+        schema: JSON schema for structured output
+        token_callback: Function to call with token usage statistics
+        context_data: Additional data to pass to tools (not part of conversation)
+        
+    Returns:
+        Dictionary with response and usage statistics
+    """
+    import openai
+
+    assistant = session["assistant"]
+    memtor : Mem4AI = session.get("memory")
+    
+    api_params, formatted_message = _prepare_api_call(
+        session, message, user_template, template_params, context, schema
+    )
     
     # Make API call to OpenAI
     response = openai.chat.completions.create(**api_params)
@@ -393,7 +431,7 @@ def process_message(
         tool_conversation.extend(tool_responses)
         
         # Make another API call with all tool results so far
-        api_params["messages"] = messages + tool_conversation
+        api_params["messages"] = api_params['messages'] + tool_conversation
         
         # Use synthesizer model for tool call processing
         api_params['model'] = assistant.get("synthesizer_model_id")
@@ -450,6 +488,337 @@ def process_message(
     return {
         "response": assistant_message.content,
         "usage": usage
+    }
+
+
+def streamed_process_message(
+    session: Dict[str, Any],
+    message: Union[str, Dict[str, Any]],
+    user_template: Optional[str] = None,
+    template_params: Dict[str, Any] = {},
+    context: Optional[Union[str, List[Dict[str, Any]]]] = None,
+    schema: Optional[Dict[str, Any]] = None,
+    context_data: Dict[str, Any] = None
+):
+    """
+    Process a user message in the given session and yield streaming updates.
+    
+    This generator function yields dictionaries with updates during processing.
+    The yielded dictionaries have a 'type' key that can be one of:
+    - 'token': A token from the LLM response with 'content' as the token text
+    - 'tool_start': When a tool starts executing with 'name' and 'args'
+    - 'tool_result': When a tool finishes with 'name' and 'result'
+    - 'finish': When processing is complete with 'response' and 'usage'
+    
+    Args:
+        session: Session dictionary from start_session
+        message: Text message or dict with text and image_url for vision
+        user_template: Jinja2 template for the user message
+        template_params: Variables to render the template
+        context: Additional context to include
+        schema: JSON schema for structured output
+        context_data: Additional data to pass to tools (not part of conversation)
+        
+    Yields:
+        Dictionaries with streaming updates during processing
+    """
+    import openai
+    
+    assistant = session["assistant"]
+    memtor : Mem4AI = session.get("memory")
+    
+    api_params, formatted_message = _prepare_api_call(
+        session, message, user_template, template_params, context, schema, stream=True
+    )
+    
+    # Make streaming API call to OpenAI
+    response_stream = openai.chat.completions.create(**api_params)
+    
+    # Variables to accumulate the response
+    collected_content = []
+    assistant_message = None
+    tool_calls = []
+    current_tool_call = None
+    
+    # Process the initial streaming response
+    for chunk in response_stream:
+        if hasattr(chunk.choices[0], 'delta'):
+            delta = chunk.choices[0].delta
+            
+            # Handle content
+            if delta.content is not None:
+                collected_content.append(delta.content)
+                yield {"type": "token", "data": delta.content}
+            
+            # Handle tool calls (this is more complex in streaming mode)
+            if hasattr(delta, 'tool_calls') and delta.tool_calls:
+                for tool_call in delta.tool_calls:
+                    # In streaming, tool calls come in fragments
+                    # We need to accumulate them
+                    if tool_call.index is not None:
+                        # New or update to existing tool call
+                        idx = tool_call.index
+                        
+                        # Ensure we have space in our tool_calls list
+                        while len(tool_calls) <= idx:
+                            tool_calls.append({
+                                "id": None,
+                                "function": {"name": "", "arguments": ""},
+                                "type": "function"
+                            })
+                        
+                        # Update tool call data
+                        if tool_call.id:
+                            tool_calls[idx]["id"] = tool_call.id
+                        
+                        if hasattr(tool_call, 'function'):
+                            if tool_call.function.name:
+                                tool_calls[idx]["function"]["name"] = tool_call.function.name
+                            
+                            if tool_call.function.arguments:
+                                # Append to arguments - they might come in chunks
+                                tool_calls[idx]["function"]["arguments"] += tool_call.function.arguments
+    
+    # Handle tool calls if any were detected
+    if tool_calls:
+        # At this point, we have the complete tool calls
+        # Similar to process_message, now we execute them one by one
+        max_tool_iterations = 5  # Safety limit to prevent infinite loops
+        current_iteration = 0
+        tool_conversation = []  # Track the entire tool conversation
+        
+        # Reconstruct the assistant message with tool calls
+        from openai.types.chat import ChatCompletionMessage, ChatCompletionMessageToolCall
+        message_content = ''.join([c for c in collected_content if c is not None])
+        
+        # Create proper ChatCompletionMessageToolCall objects from our accumulated data
+        formatted_tool_calls = []
+        for tc in tool_calls:
+            if tc['id'] and tc['function']['name']:  # Only include complete tool calls
+                formatted_tool_calls.append(
+                    ChatCompletionMessageToolCall(
+                        id=tc['id'],
+                        type="function",
+                        function={
+                            "name": tc['function']['name'],
+                            "arguments": tc['function']['arguments']
+                        }
+                    )
+                )
+        
+        assistant_message = ChatCompletionMessage(
+            role="assistant",
+            content=message_content,
+            tool_calls=formatted_tool_calls if formatted_tool_calls else None
+        )
+        
+        while (hasattr(assistant_message, 'tool_calls') and 
+               assistant_message.tool_calls and 
+               current_iteration < max_tool_iterations):
+            
+            current_iteration += 1
+            tool_messages = []
+            
+            # Add assistant message with tool calls to temporary conversation
+            assistant_tool_message = {
+                "role": "assistant",
+                "content": assistant_message.content,
+                "tool_calls": [tool_call.model_dump() for tool_call in assistant_message.tool_calls]
+            }
+            tool_messages.append(assistant_tool_message)
+            tool_conversation.append(assistant_tool_message)
+            
+            # Process tool calls
+            tool_responses = []
+            tool_map = assistant.get("tool_map", {})
+            
+            for tool_call in assistant_message.tool_calls:
+                function_name = tool_call.function.name
+                function_args = json.loads(tool_call.function.arguments)
+                
+                # Notify about tool execution starting
+                yield {"type": "tool_start", "data": {
+                    "name": function_name,
+                    "args": function_args,
+                    "id": tool_call.id
+                }}
+                
+                # Find and execute the function
+                if function_name in tool_map:
+                    function = tool_map[function_name]
+                    try:
+                        # Pass context_data to the function if available
+                        if context_data:
+                            function_response = function(**function_args, **context_data)
+                        else:
+                            function_response = function(**function_args)
+                        result = str(function_response)
+                    except Exception as e:
+                        result = f"Error: {str(e)}"
+                else:
+                    result = f"Error: Function {function_name} not found"
+                
+                # Notify about tool execution result
+                yield {"type": "tool_result", "data": {
+                    "name": function_name,
+                    "result": result,
+                    "id": tool_call.id
+                }}
+                
+                # Add tool response
+                tool_response = {
+                    "tool_call_id": tool_call.id,
+                    "role": "tool",
+                    "name": function_name,
+                    "content": result
+                }
+                tool_responses.append(tool_response)
+                
+                # Store tool interaction in memory if memory is available
+                if memtor:
+                    # Store function call and result in memory with metadata
+                    tool_metadata = {
+                        "type": "tool_call",
+                        "timestamp": datetime.datetime.now().isoformat(),
+                        "function_name": function_name,
+                        "tool_call_id": tool_call.id,
+                        "iteration": current_iteration
+                    }
+                    
+                    # Store function call in memory
+                    memtor.add_memory(
+                        f"Function call: {function_name} with args: {function_args}", 
+                        "assistant", 
+                        tool_metadata
+                    )
+                    
+                    # Always store tool result in memory for potential future reference
+                    memtor.add_memory(
+                        f"Function result: {result}", 
+                        "tool", 
+                        tool_metadata
+                    )
+            
+            # Add tool responses to current iteration conversation
+            tool_messages.extend(tool_responses)
+            tool_conversation.extend(tool_responses)
+            
+            # Make another API call with all tool results so far
+            api_params["messages"] = api_params["messages"] + tool_conversation
+            
+            # Use synthesizer model for tool call processing
+            api_params['model'] = assistant.get("synthesizer_model_id")
+            
+            # Stream the next response
+            collected_tool_content = []
+            tool_call_response_stream = openai.chat.completions.create(**api_params)
+            
+            new_tool_calls = []
+            for chunk in tool_call_response_stream:
+                if hasattr(chunk.choices[0], 'delta'):
+                    delta = chunk.choices[0].delta
+                    
+                    # Handle content
+                    if delta.content is not None:
+                        collected_tool_content.append(delta.content)
+                        yield {"type": "token", "data": delta.content}
+                    
+                    # Handle tool calls
+                    if hasattr(delta, 'tool_calls') and delta.tool_calls:
+                        # Same accumulation logic as above
+                        for tool_call in delta.tool_calls:
+                            if tool_call.index is not None:
+                                idx = tool_call.index
+                                
+                                while len(new_tool_calls) <= idx:
+                                    new_tool_calls.append({
+                                        "id": None,
+                                        "function": {"name": "", "arguments": ""},
+                                        "type": "function"
+                                    })
+                                
+                                if tool_call.id:
+                                    new_tool_calls[idx]["id"] = tool_call.id
+                                
+                                if hasattr(tool_call, 'function'):
+                                    if tool_call.function.name:
+                                        new_tool_calls[idx]["function"]["name"] = tool_call.function.name
+                                    
+                                    if tool_call.function.arguments:
+                                        new_tool_calls[idx]["function"]["arguments"] += tool_call.function.arguments
+            
+            # Create new assistant message from the tool call response
+            message_content = ''.join([c for c in collected_tool_content if c is not None])
+            
+            # Process new tool calls if any
+            formatted_new_tool_calls = []
+            for tc in new_tool_calls:
+                if tc['id'] and tc['function']['name']:  # Only include complete tool calls
+                    formatted_new_tool_calls.append(
+                        ChatCompletionMessageToolCall(
+                            id=tc['id'],
+                            type="function",
+                            function={
+                                "name": tc['function']['name'],
+                                "arguments": tc['function']['arguments']
+                            }
+                        )
+                    )
+            
+            assistant_message = ChatCompletionMessage(
+                role="assistant",
+                content=message_content,
+                tool_calls=formatted_new_tool_calls if formatted_new_tool_calls else None
+            )
+            
+            # If we're at the max iterations and still have tool calls, log a warning
+            if (current_iteration == max_tool_iterations and 
+                hasattr(assistant_message, 'tool_calls') and 
+                assistant_message.tool_calls):
+                warning_msg = f"Warning: Reached maximum tool call iterations ({max_tool_iterations})"
+                print(warning_msg)
+                yield {"type": "warning", "data": warning_msg}
+                if memtor:
+                    memtor.add_memory(
+                        warning_msg, 
+                        "system", 
+                        {"type": "warning", "timestamp": datetime.datetime.now().isoformat()}
+                    )
+    else:
+        # No tool calls, just a regular response
+        # We've already streamed it, just reconstruct the final message
+        from openai.types.chat import ChatCompletionMessage
+        message_content = ''.join([c for c in collected_content if c is not None])
+        assistant_message = ChatCompletionMessage(role="assistant", content=message_content)
+    
+    # Update session timestamp
+    session["updated_at"] = datetime.datetime.now().isoformat()
+    
+    # Store the conversation in memory
+    if memtor and isinstance(message, str):
+        # Extract the messages from the conversation
+        last_user_msg = formatted_message
+        last_assistant_msg = assistant_message.content
+        
+        # Common metadata for both messages
+        metadata = {
+            "type": "conversation", 
+            "timestamp": datetime.datetime.now().isoformat()
+        }
+        
+        # Add user message
+        memtor.add_memory(last_user_msg, "user", metadata)
+        
+        # Add assistant message
+        memtor.add_memory(last_assistant_msg, "assistant", metadata)
+    
+    # Send final completion event with full response
+    yield {
+        "type": "finish", 
+        "data": {
+            "response": assistant_message.content,
+            "usage": None  # Usage stats aren't available in streaming mode
+        }
     }
 
 
