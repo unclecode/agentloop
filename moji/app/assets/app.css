@@ -244,7 +244,7 @@ main {
     overflow-y: hidden;
     padding-top: 60px; /* Space for fixed header */
     /* padding-bottom: 73px; ß */
-    padding-bottom: 0; /* Space for input container */
+    padding-bottom: 7em; /* Space for input container */
     height: 100vh;
     width: 100%;
     position: relative;
@@ -807,8 +807,8 @@ main {
     
     main {
         padding-top: 55px;
-        /* padding-bottom: 65px; */
-        padding-bottom: 0;
+        padding-bottom: 65px;
+        /* padding-bottom: 0;ß */
     }
     
     .chat-messages {

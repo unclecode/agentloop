@@ -2,7 +2,7 @@ import os, sys
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))                
 
-from config import TMDB_ACCESS_TOKEN
+
 from concurrent.futures import ThreadPoolExecutor
 from concurrent.futures import as_completed
 # from tools.search_image import get_movie_poster
@@ -14,6 +14,7 @@ import requests
 import json, pprint
 from redis import Redis
 
+TMDB_ACCESS_TOKEN = os.environ.get('TMDB_ACCESS_TOKEN', '')
 FUZZ_VAL = 70
 
 def clean_search_query(query):

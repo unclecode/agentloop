@@ -132,7 +132,7 @@ APP_SUPPORT_SCHEMA = {
     "type": "function",
     "function": {
         "name": "app_support_assistant",
-        "description": "Answers user questions about the app's features, functionalities, and how to use them. Use this tool when users ask about specific app operations, troubleshooting, or general app-related inquiries.",
+        "description": "Answers user questions ONLY about the Moji app features. Use this tool when users ask about specific app operations, troubleshooting, or general app-related inquiries. DO NOT USE FOR OTHER QUESTIONS.",
         "parameters": {
             "type": "object",
             "properties": {
