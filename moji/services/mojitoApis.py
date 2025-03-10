@@ -380,6 +380,7 @@ class MojitoAPIs:
         
         if not isinstance(list_id, str) or not list_id:
             raise ValueError("Invalid list_id. It must be a non-empty string.")
+    
         
         url = f"{self.base_url}{self.action_url}"
         data = {

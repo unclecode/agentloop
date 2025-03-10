@@ -5,6 +5,7 @@ This assistant provides movie recommendations, information about movies,
 and manages user favorite lists.
 """
 
+from multiprocessing import context
 import os
 import json
 import importlib
@@ -250,9 +251,18 @@ You can provide recommendations, information, or help manage their favorite list
             context_parts.append(f"# User Information\nThe user's name is: {user_name}")
         
         # Add favorite lists if available
-        favorite_lists = self.params.get("user_extra_data", {}).get("favorite_lists", [])
+        favorite_lists = self.params.get("user_details", {}).get("favorite_genre", [])
+        if favorite_lists:
+            context_parts.append(f"# User's Favorite Genre\n```json\n{json.dumps(favorite_lists, indent=2)}\n```")
+
+        # Retrive user favorite lists
+        from moji.services.mojitoApis import MojitoAPIs
+        mojito = MojitoAPIs(user_id=self.user_id, token=self.user_token)
+        favorite_lists = mojito.get_favorite_lists()
         if favorite_lists:
             context_parts.append(f"# User's Favorite Lists\n```json\n{json.dumps(favorite_lists, indent=2)}\n```")
+            # Stress and emphasize the model to retrive list_id based on the requested list bname from the injected json data 
+            context_parts.append("In conversation with users, they share their favorite lists with you by mentioning their names. However, tools and functions require list_id. You can use the above JSON data to retrieve list_id based on the requested list name.")
         
         # Combine all context parts
         return "\n\n".join(context_parts)
