@@ -463,6 +463,9 @@ function processStreamingMessage(message, typingIndicator) {
                         const toolCountEl = toolsWrapper.querySelector('.tools-count');
                         toolCountEl.textContent = `(${toolMessages.length})`;
                         
+                        // Scroll to bottom when tool call starts
+                        scrollToBottom();
+                        
                         break;
 
                     case 'tool_result':
@@ -489,6 +492,9 @@ function processStreamingMessage(message, typingIndicator) {
 
                             resultPre.textContent = resultStr;
                             resultDiv.appendChild(resultPre);
+                            
+                            // Scroll to bottom when tool result is received
+                            scrollToBottom();
                         }
                         break;
 
