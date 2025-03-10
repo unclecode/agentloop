@@ -113,12 +113,50 @@ async function loadConversationHistory() {
 
         // Check if we have any messages
         if (data.messages && data.messages.length > 0) {
-            // Display the messages
+            // Process and group tool messages
+            let currentAssistantMessage = null;
+            let pendingToolMessages = [];
+            
             data.messages.forEach(msg => {
                 const content = msg.content;
                 const role = msg.role;
-                addMessage(content, role);
+                
+                // If this is a tool message, collect it for later processing
+                if (role === 'tool' || role === "tool-call" || role === "function") {
+                    pendingToolMessages.push(msg);
+                    return;
+                }
+                
+                // If this is an assistant message and we have pending tool messages,
+                // we need to render the tool messages before this assistant message
+                if (role === 'assistant' && pendingToolMessages.length > 0) {
+                    // Create or get the assistant message container to append tools to
+                    if (!currentAssistantMessage) {
+                        currentAssistantMessage = createAssistantMessageWithTools(pendingToolMessages);
+                        chatMessages.appendChild(currentAssistantMessage);
+                    } else {
+                        // Add tools to existing assistant message
+                        appendToolsToMessage(currentAssistantMessage, pendingToolMessages);
+                    }
+                    pendingToolMessages = [];
+                }
+                
+                // Now add the regular message
+                if (role === 'assistant') {
+                    currentAssistantMessage = addMessage(content, role);
+                } else if (role === 'user') {
+                    addMessage(content, role);
+                    currentAssistantMessage = null; // Reset when user message encountered
+                } else {
+                    // Skip other message types that aren't user, assistant, or tool
+                    console.log(`Skipping unknown message type: ${role}`);
+                }
             });
+            
+            // Process any remaining tool messages
+            if (pendingToolMessages.length > 0 && currentAssistantMessage) {
+                appendToolsToMessage(currentAssistantMessage, pendingToolMessages);
+            }
 
             // Scroll to bottom
             scrollToBottom();
@@ -277,13 +315,15 @@ function processStreamingMessage(message, typingIndicator) {
         // Reset current response
         state.currentResponse = '';
 
-        // Current tool execution elements
-        let currentToolDiv = null;
-        let currentToolResultDiv = null;
-
         // Function to create message div only when we need it
         let assistantMessage = null;
         let assistantMessageContent = null;
+        
+        // Tool tracking
+        let toolMessages = [];
+        let toolsWrapper = null;
+        let toolsContainer = null;
+        let currentToolDiv = null;
 
         function getOrCreateAssistantMessage() {
             if (!assistantMessage) {
@@ -293,16 +333,42 @@ function processStreamingMessage(message, typingIndicator) {
 
                 const messageDiv = document.createElement('div');
                 messageDiv.className = 'message';
+                
+                // Create tools wrapper first (will be at the top)
+                toolsWrapper = document.createElement('div');
+                toolsWrapper.className = 'tools-wrapper collapsed';
+                
+                // Create toggle header
+                const toggleHeader = document.createElement('div');
+                toggleHeader.className = 'tools-toggle-header';
+                toggleHeader.innerHTML = `<i class="fas fa-cogs"></i> Tool Executions <span class="tools-count">(0)</span>`;
+                toggleHeader.addEventListener('click', () => {
+                    toolsWrapper.classList.toggle('collapsed');
+                });
+                
+                toolsWrapper.appendChild(toggleHeader);
+                
+                // Create tools container
+                toolsContainer = document.createElement('div');
+                toolsContainer.className = 'tools-container';
+                toolsWrapper.appendChild(toolsContainer);
+                
+                // Hide tools wrapper initially - we'll show it when tools are added
+                toolsWrapper.style.display = 'none';
+                
+                messageDiv.appendChild(toolsWrapper);
 
+                // Create message content div for the actual response
                 assistantMessageContent = document.createElement('div');
                 assistantMessageContent.className = 'message-content';
-
                 messageDiv.appendChild(assistantMessageContent);
+
                 assistantMessage.appendChild(messageDiv);
 
                 // Insert before typing indicator
                 chatMessages.insertBefore(assistantMessage, typingIndicator);
             }
+            
             return assistantMessageContent;
         }
 
@@ -366,29 +432,55 @@ function processStreamingMessage(message, typingIndicator) {
 
                         const toolHeader = document.createElement('div');
                         toolHeader.className = 'tool-header';
-                        toolHeader.innerHTML = `<i class="fas fa-cog fa-spin"></i> Executing: ${data.data.name}`;
+                        toolHeader.innerHTML = `<i class="fas fa-cog fa-spin"></i> ${data.data.name}`;
 
                         const toolArgs = document.createElement('pre');
+                        toolArgs.className = 'tool-args';
                         toolArgs.textContent = JSON.stringify(data.data.args, null, 2);
 
                         currentToolDiv.appendChild(toolHeader);
                         currentToolDiv.appendChild(toolArgs);
-
-                        // Add to assistant message or create one if needed
-                        getOrCreateAssistantMessage().appendChild(currentToolDiv);
-
+                        
                         // Create placeholder for results
-                        currentToolResultDiv = document.createElement('div');
-                        currentToolResultDiv.className = 'tool-result';
-                        currentToolResultDiv.innerHTML = '<i>Processing...</i>';
-                        currentToolDiv.appendChild(currentToolResultDiv);
+                        const toolResultDiv = document.createElement('div');
+                        toolResultDiv.className = 'tool-result';
+                        toolResultDiv.innerHTML = '<i>Processing...</i>';
+                        currentToolDiv.appendChild(toolResultDiv);
 
+                        // Make sure we have the assistant message and tools container
+                        getOrCreateAssistantMessage();
+                        
+                        // Show the tools wrapper if it was hidden
+                        if (toolsWrapper.style.display === 'none') {
+                            toolsWrapper.style.display = 'block';
+                        }
+                        
+                        // Add the tool to the container
+                        toolsContainer.appendChild(currentToolDiv);
+                        
+                        // Update the tool count
+                        toolMessages.push(data.data);
+                        const toolCountEl = toolsWrapper.querySelector('.tools-count');
+                        toolCountEl.textContent = `(${toolMessages.length})`;
+                        
                         break;
 
                     case 'tool_result':
-                        // Update tool result if we have one
-                        if (currentToolResultDiv) {
-                            currentToolResultDiv.innerHTML = '';
+                        // Find the most recent tool div without a result
+                        const toolDivs = toolsContainer.querySelectorAll('.tool-execution');
+                        let targetToolDiv = null;
+                        
+                        for (let i = toolDivs.length - 1; i >= 0; i--) {
+                            const resultDiv = toolDivs[i].querySelector('.tool-result');
+                            if (resultDiv && resultDiv.innerHTML === '<i>Processing...</i>') {
+                                targetToolDiv = toolDivs[i];
+                                break;
+                            }
+                        }
+                        
+                        if (targetToolDiv) {
+                            const resultDiv = targetToolDiv.querySelector('.tool-result');
+                            resultDiv.innerHTML = '';
 
                             const resultPre = document.createElement('pre');
                             const resultStr = typeof data.data.result === 'object'
@@ -396,11 +488,7 @@ function processStreamingMessage(message, typingIndicator) {
                                 : String(data.data.result);
 
                             resultPre.textContent = resultStr;
-                            currentToolResultDiv.appendChild(resultPre);
-
-                            // Clear references
-                            currentToolDiv = null;
-                            currentToolResultDiv = null;
+                            resultDiv.appendChild(resultPre);
                         }
                         break;
 
@@ -467,6 +555,267 @@ function processStreamingMessage(message, typingIndicator) {
     });
 }
 
+// Create a message container for the assistant that includes tool messages
+function createAssistantMessageWithTools(toolMessages) {
+    const messageContainer = document.createElement('div');
+    messageContainer.className = 'message-container assistant-message';
+
+    const messageDiv = document.createElement('div');
+    messageDiv.className = 'message';
+
+    // Create the tool execution wrapper that will be collapsible
+    const toolsWrapper = document.createElement('div');
+    toolsWrapper.className = 'tools-wrapper collapsed';
+    
+    // Add the collapsed tools container with toggle button
+    const toolsContainer = document.createElement('div');
+    toolsContainer.className = 'tools-container';
+    
+    // Create toggle header
+    const toggleHeader = document.createElement('div');
+    toggleHeader.className = 'tools-toggle-header';
+    toggleHeader.innerHTML = `<i class="fas fa-cogs"></i> Tool Executions <span class="tools-count">(${toolMessages.length})</span>`;
+    toggleHeader.addEventListener('click', () => {
+        toolsWrapper.classList.toggle('collapsed');
+    });
+    
+    toolsWrapper.appendChild(toggleHeader);
+    
+    // Add each tool message to the container
+    toolMessages.forEach(toolMsg => {
+        const toolDiv = createToolExecutionElement(toolMsg.content);
+        toolsContainer.appendChild(toolDiv);
+    });
+    
+    toolsWrapper.appendChild(toolsContainer);
+    messageDiv.appendChild(toolsWrapper);
+    messageContainer.appendChild(messageDiv);
+    
+    return messageContainer;
+}
+
+// Add tool messages to an existing assistant message
+function appendToolsToMessage(messageContainer, toolMessages) {
+    // Find the message div inside the container
+    const messageDiv = messageContainer.querySelector('.message');
+    
+    // Check if there's already a tools wrapper
+    let toolsWrapper = messageDiv.querySelector('.tools-wrapper');
+    
+    if (!toolsWrapper) {
+        // Create the tools wrapper if it doesn't exist
+        toolsWrapper = document.createElement('div');
+        toolsWrapper.className = 'tools-wrapper collapsed';
+        
+        // Create toggle header
+        const toggleHeader = document.createElement('div');
+        toggleHeader.className = 'tools-toggle-header';
+        toggleHeader.innerHTML = `<i class="fas fa-cogs"></i> Tool Executions <span class="tools-count">(${toolMessages.length})</span>`;
+        toggleHeader.addEventListener('click', () => {
+            toolsWrapper.classList.toggle('collapsed');
+        });
+        
+        toolsWrapper.appendChild(toggleHeader);
+        
+        // Create tools container
+        const toolsContainer = document.createElement('div');
+        toolsContainer.className = 'tools-container';
+        toolsWrapper.appendChild(toolsContainer);
+        
+        // Add to the message div before any existing content
+        messageDiv.insertBefore(toolsWrapper, messageDiv.firstChild);
+    } else {
+        // Update the tool count
+        const currentCount = parseInt(toolsWrapper.querySelector('.tools-count').textContent.match(/\d+/)[0]);
+        toolsWrapper.querySelector('.tools-count').textContent = `(${currentCount + toolMessages.length})`;
+    }
+    
+    // Add each tool message to the container
+    const toolsContainer = toolsWrapper.querySelector('.tools-container');
+    toolMessages.forEach(toolMsg => {
+        const toolDiv = createToolExecutionElement(toolMsg.content);
+        toolsContainer.appendChild(toolDiv);
+    });
+}
+
+// Create a single tool execution element
+function createToolExecutionElement(content) {
+    // Parse the content (could be JSON or text)
+    let toolData = content;
+    let toolName = 'Unknown Tool';
+    let toolArgs = {};
+    let toolResult = null;
+    
+    // Handle the content based on its type
+    try {
+        if (typeof content === 'string') {
+            // Case 1: Function call format with "with args:" pattern
+            // Example: "Function call: get_list_items with args: {'list_id': 'BIG_FIVE'}"
+            if (content.includes('with args:')) {
+                let functionMatch = content.match(/Function call:\s+(\w+)(?:\s+with\s+args:)?\s*(.*)/i);
+                if (!functionMatch) {
+                    // Try alternative pattern
+                    functionMatch = content.match(/Tool call:\s+(\w+)(?:\s+with\s+args:)?\s*(.*)/i);
+                }
+                
+                if (functionMatch) {
+                    // Extract function name
+                    toolName = functionMatch[1].trim();
+                    
+                    // Extract arguments
+                    let argsText = functionMatch[2]?.trim() || '';
+                    if (argsText) {
+                        try {
+                            // Try to parse as JSON - handle single quotes and convert to double quotes
+                            argsText = argsText.replace(/'/g, '"')
+                                              .replace(/(\w+):/g, '"$1":');
+                            toolArgs = JSON.parse(argsText);
+                        } catch (e) {
+                            console.log('Failed to parse function args:', e);
+                            toolArgs = { raw_args: argsText };
+                        }
+                    }
+                }
+            }
+            // Case 2: Standard function call format
+            else if (content.startsWith('Function call:') || content.startsWith('Tool call:')) {
+                const lines = content.split('\n');
+                
+                // Extract tool name from first line (e.g., "Function call: get_movie_info")
+                const callLine = lines[0];
+                toolName = callLine.split(':')[1]?.trim() || 'Unknown Tool';
+                
+                // Try to extract arguments from subsequent lines
+                if (lines.length > 1) {
+                    try {
+                        // Look for a JSON block in the remaining text
+                        const argsText = lines.slice(1).join('\n').trim();
+                        if (argsText) {
+                            toolArgs = JSON.parse(argsText);
+                        }
+                    } catch (e) {
+                        // If JSON parsing fails, just use the text as is
+                        toolArgs = { 'raw_arguments': lines.slice(1).join('\n').trim() };
+                    }
+                }
+            }
+            // Case 3: Function result format
+            // Example: "Function result: {"status": true, "message": "Retrieved 6 lists", ...}"
+            else if (content.includes('Function result:') || content.includes('Tool result:')) {
+                // Extract JSON from the result string
+                let jsonStart = content.indexOf('{');
+                if (jsonStart !== -1) {
+                    try {
+                        toolResult = JSON.parse(content.substring(jsonStart));
+                        
+                        // If we have a structured result with type/name, use it
+                        if (toolResult.type) {
+                            toolName = `${toolResult.type.charAt(0).toUpperCase() + toolResult.type.slice(1)} Result`;
+                        }
+                    } catch (e) {
+                        console.log('Failed to parse function result:', e);
+                        toolResult = { raw_result: content.substring(jsonStart) };
+                    }
+                } else {
+                    // No JSON found, use the whole string after the prefix
+                    const prefix = content.includes('Function result:') ? 'Function result:' : 'Tool result:';
+                    toolResult = content.substring(content.indexOf(prefix) + prefix.length).trim();
+                }
+            }
+            // Case 4: Plain JSON
+            else {
+                try {
+                    toolData = JSON.parse(content);
+                } catch (e) {
+                    // Just use the content as text
+                    toolResult = content;
+                }
+            }
+        }
+    } catch (e) {
+        console.log('Failed to process tool content:', e);
+    }
+    
+    // Extract information from toolData if it's an object
+    if (toolData && typeof toolData === 'object') {
+        // Extract tool name
+        toolName = toolData.name || toolData.tool || toolData.function || toolName;
+        
+        // Extract arguments
+        toolArgs = toolData.args || toolData.arguments || toolData.parameters || toolArgs;
+        
+        // Extract result
+        toolResult = toolData.result || toolData.response || toolData.output || toolResult;
+    }
+    
+    // Create the tool execution element
+    const toolDiv = document.createElement('div');
+    toolDiv.className = 'tool-execution';
+    
+    // Create tool header
+    const toolHeader = document.createElement('div');
+    toolHeader.className = 'tool-header';
+    toolHeader.innerHTML = `<i class="fas fa-cog"></i> ${toolName}`;
+    toolDiv.appendChild(toolHeader);
+    
+    // Create arguments section if we have arguments
+    if (Object.keys(toolArgs).length > 0) {
+        const toolArgsElement = document.createElement('pre');
+        toolArgsElement.className = 'tool-args';
+        toolArgsElement.textContent = typeof toolArgs === 'object' 
+            ? JSON.stringify(toolArgs, null, 2) 
+            : String(toolArgs);
+        toolDiv.appendChild(toolArgsElement);
+    }
+    
+    // Create result section if available
+    if (toolResult !== null) {
+        const toolResultDiv = document.createElement('div');
+        toolResultDiv.className = 'tool-result';
+        
+        // Create formatted result display
+        if (typeof toolResult === 'object') {
+            // For data-rich results like movie lists, create a more structured view
+            if (toolResult.data && toolResult.type === 'list') {
+                const resultHeader = document.createElement('div');
+                resultHeader.className = 'result-header';
+                resultHeader.textContent = toolResult.message || 'Result';
+                toolResultDiv.appendChild(resultHeader);
+                
+                if (toolResult.data.items && Array.isArray(toolResult.data.items)) {
+                    const listElement = document.createElement('ul');
+                    listElement.className = 'result-list';
+                    
+                    toolResult.data.items.forEach(item => {
+                        const listItem = document.createElement('li');
+                        listItem.textContent = item.name || String(item);
+                        if (item.list_id) {
+                            listItem.setAttribute('data-id', item.list_id);
+                        }
+                        listElement.appendChild(listItem);
+                    });
+                    
+                    toolResultDiv.appendChild(listElement);
+                }
+            } else {
+                // Standard JSON display
+                const resultPre = document.createElement('pre');
+                resultPre.textContent = JSON.stringify(toolResult, null, 2);
+                toolResultDiv.appendChild(resultPre);
+            }
+        } else {
+            // Text result
+            const resultPre = document.createElement('pre');
+            resultPre.textContent = String(toolResult);
+            toolResultDiv.appendChild(resultPre);
+        }
+        
+        toolDiv.appendChild(toolResultDiv);
+    }
+    
+    return toolDiv;
+}
+
 function addMessage(content, role) {
     const messageContainer = document.createElement('div');
     messageContainer.className = `message-container ${role}-message`;
@@ -477,8 +826,13 @@ function addMessage(content, role) {
     if (role === 'user') {
         messageDiv.textContent = content;
     } else {
+        // Create message content div
+        const contentDiv = document.createElement('div');
+        contentDiv.className = 'message-content';
+        
         // For assistant messages, parse markdown
-        messageDiv.innerHTML = marked.parse(content);
+        contentDiv.innerHTML = marked.parse(content);
+        messageDiv.appendChild(contentDiv);
     }
 
     messageContainer.appendChild(messageDiv);

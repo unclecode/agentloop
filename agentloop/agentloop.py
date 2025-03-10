@@ -434,7 +434,7 @@ class AgentLoop:
                     # Store function call in memory
                     self._memory.add_memory(
                         f"Function call: {function_name} with args: {function_args}", 
-                        "assistant", 
+                        "tool-call", 
                         tool_metadata
                     )
                     

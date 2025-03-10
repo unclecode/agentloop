@@ -227,6 +227,14 @@ def get_conversation_history():
 
         # Get history directly through the agent
         formatted_messages = assistant.agent.get_history(token_limit=int(1e6))
+
+        # Normalize message roles for consistent frontend handling
+        for msg in formatted_messages:
+            # Check for various tool/function message formats and normalize to 'tool'
+            if msg.get('role') in ['function', 'tool-call', 'tool']:
+                msg['role'] = 'tool'
+            elif msg.get('content', '').startswith('Function call:') or msg.get('content', '').startswith('Tool call:'):
+                msg['role'] = 'tool'
         
         return jsonify({
             "success": True,
