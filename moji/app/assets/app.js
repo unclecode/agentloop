@@ -71,11 +71,11 @@ function init() {
     const savedUserId = localStorage.getItem('mojiUserId');
     const savedUserToken = localStorage.getItem('mojiUserToken');
     const savedUserProfile = localStorage.getItem('mojiUserProfile');
-    
+
     if (savedUserId && savedUserToken) {
         state.userId = savedUserId;
         state.userToken = savedUserToken;
-        
+
         // Try to parse the user profile
         try {
             state.userProfile = savedUserProfile ? JSON.parse(savedUserProfile) : {};
@@ -83,10 +83,10 @@ function init() {
             state.userProfile = {};
             console.error('Failed to parse saved user profile:', e);
         }
-        
+
         authenticateUser();
     }
-    
+
     // Enable/disable send button based on input
     handleInputChange();
 }
@@ -96,21 +96,21 @@ async function loadConversationHistory() {
     try {
         // Clear any existing messages first
         chatMessages.innerHTML = '';
-        
+
         // Add loading indicator
         const loadingIndicator = addTypingIndicator();
-        
+
         // Fetch conversation history from the server
         const response = await fetch(`/api/history?user_id=${state.userId}&user_token=${state.userToken}`);
         const data = await response.json();
-        
+
         // Remove loading indicator
         removeElement(loadingIndicator);
-        
+
         if (!response.ok || !data.success) {
             throw new Error(data.error || 'Failed to load conversation history');
         }
-        
+
         // Check if we have any messages
         if (data.messages && data.messages.length > 0) {
             // Display the messages
@@ -119,7 +119,7 @@ async function loadConversationHistory() {
                 const role = msg.role;
                 addMessage(content, role);
             });
-            
+
             // Scroll to bottom
             scrollToBottom();
         } else {
@@ -137,7 +137,7 @@ async function loadConversationHistory() {
 function displayWelcomeMessage() {
     // Clear chat messages
     chatMessages.innerHTML = '';
-    
+
     // Add welcome message
     const welcomeMessage = document.createElement('div');
     welcomeMessage.className = 'welcome-message';
@@ -151,7 +151,7 @@ function displayWelcomeMessage() {
         </div>
     `;
     chatMessages.appendChild(welcomeMessage);
-    
+
     // Reattach event listeners to suggestion buttons
     welcomeMessage.querySelectorAll('.suggestion-btn').forEach(btn => {
         btn.addEventListener('click', () => {
@@ -173,18 +173,18 @@ function handleInputChange() {
 
 async function handleLogin(e) {
     e.preventDefault();
-    
+
     const email = emailInput.value.trim();
     if (!email) {
         showLoginError('Please enter your email');
         return;
     }
-    
+
     try {
         // Show loading spinner
         loginSpinner.classList.add('active');
         loginError.textContent = '';
-        
+
         const response = await fetch('/api/auth', {
             method: 'POST',
             headers: {
@@ -192,26 +192,26 @@ async function handleLogin(e) {
             },
             body: JSON.stringify({ email })
         });
-        
+
         const data = await response.json();
-        
+
         if (!response.ok || !data.success) {
             throw new Error(data.error || 'Authentication failed');
         }
-        
+
         // Store credentials and user profile
         state.userId = data.user_id;
         state.userToken = data.user_token;
         state.userProfile = data.user_profile || {};
-        
+
         // Save to localStorage
         localStorage.setItem('mojiUserId', state.userId);
         localStorage.setItem('mojiUserToken', state.userToken);
         localStorage.setItem('mojiUserProfile', JSON.stringify(state.userProfile));
-        
+
         // Change to chat screen
         switchToChatScreen();
-        
+
     } catch (error) {
         showLoginError(error.message);
     } finally {
@@ -223,7 +223,7 @@ function authenticateUser() {
     // Already have credentials, switch to chat screen
     if (state.userId && state.userToken) {
         switchToChatScreen();
-        
+
         // Load conversation history
         loadConversationHistory();
     }
@@ -243,22 +243,22 @@ function showLoginError(message) {
 
 async function handleSendMessage(e) {
     e.preventDefault();
-    
+
     const message = messageInput.value.trim();
     if (!message || state.isProcessing) return;
-    
+
     state.isProcessing = true;
-    
+
     // Add user message to chat
     addMessage(message, 'user');
-    
+
     // Clear input
     messageInput.value = '';
     handleInputChange();
-    
+
     // Show typing indicator
     const typingIndicator = addTypingIndicator();
-    
+
     try {
         // Use the streaming API with user profile
         await processStreamingMessage(message, typingIndicator);
@@ -276,30 +276,30 @@ function processStreamingMessage(message, typingIndicator) {
     return new Promise((resolve, reject) => {
         // Reset current response
         state.currentResponse = '';
-        
+
         // Current tool execution elements
         let currentToolDiv = null;
         let currentToolResultDiv = null;
-        
+
         // Function to create message div only when we need it
         let assistantMessage = null;
         let assistantMessageContent = null;
-        
+
         function getOrCreateAssistantMessage() {
             if (!assistantMessage) {
                 // Create the assistant message
                 assistantMessage = document.createElement('div');
                 assistantMessage.className = 'message-container assistant-message';
-                
+
                 const messageDiv = document.createElement('div');
                 messageDiv.className = 'message';
-                
+
                 assistantMessageContent = document.createElement('div');
                 assistantMessageContent.className = 'message-content';
-                
+
                 messageDiv.appendChild(assistantMessageContent);
                 assistantMessage.appendChild(messageDiv);
-                
+
                 // Insert before typing indicator
                 chatMessages.insertBefore(assistantMessage, typingIndicator);
             }
@@ -308,7 +308,7 @@ function processStreamingMessage(message, typingIndicator) {
 
         // Use a single GET request with query parameters for streaming
         const encodedMessage = encodeURIComponent(message);
-        
+
         // Encode user profile for the stream URL
         let encodedUserProfile = '{}';
         if (state.userProfile) {
@@ -318,122 +318,148 @@ function processStreamingMessage(message, typingIndicator) {
                 console.error('Failed to encode user profile:', e);
             }
         }
-        
+
         const streamUrl = `/api/chat/stream?user_id=${state.userId}&user_token=${state.userToken}&message=${encodedMessage}&user_profile=${encodedUserProfile}`;
-        
+
         console.log('Establishing SSE connection with message data');
-        
+
         // Create SSE connection with message data in URL
         const eventSource = new EventSource(streamUrl);
-        
+
         // Store reference to allow closing
         state.eventSource = eventSource;
-        
+
         // Configure event handlers
         eventSource.onopen = (e) => {
             console.log('EventSource connection opened');
         };
-        
+
         eventSource.onmessage = (event) => {
             console.log('SSE message received:', event.data);
             try {
                 const data = JSON.parse(event.data);
-                
+
                 // Handle connection ready event
                 if (data.type === 'connection_ready') {
                     console.log('SSE connection ready for streaming');
                     return;
                 }
-                
+
                 switch (data.type) {
                     case 'token':
                         // Accumulate tokens
                         state.currentResponse += data.data;
-                        
+
                         // Update the content 
                         const contentDiv = getOrCreateAssistantMessage();
                         // Render markdown content
                         contentDiv.innerHTML = marked.parse(state.currentResponse);
-                        
+
                         // Scroll to keep content in view
                         scrollToBottom();
                         break;
-                    
+
                     case 'tool_start':
                         // Create tool execution UI
                         currentToolDiv = document.createElement('div');
                         currentToolDiv.className = 'tool-execution';
-                        
+
                         const toolHeader = document.createElement('div');
                         toolHeader.className = 'tool-header';
                         toolHeader.innerHTML = `<i class="fas fa-cog fa-spin"></i> Executing: ${data.data.name}`;
-                        
+
                         const toolArgs = document.createElement('pre');
                         toolArgs.textContent = JSON.stringify(data.data.args, null, 2);
-                        
+
                         currentToolDiv.appendChild(toolHeader);
                         currentToolDiv.appendChild(toolArgs);
-                        
+
                         // Add to assistant message or create one if needed
                         getOrCreateAssistantMessage().appendChild(currentToolDiv);
-                        
+
                         // Create placeholder for results
                         currentToolResultDiv = document.createElement('div');
                         currentToolResultDiv.className = 'tool-result';
                         currentToolResultDiv.innerHTML = '<i>Processing...</i>';
                         currentToolDiv.appendChild(currentToolResultDiv);
-                        
+
                         break;
-                    
+
                     case 'tool_result':
                         // Update tool result if we have one
                         if (currentToolResultDiv) {
                             currentToolResultDiv.innerHTML = '';
-                            
+
                             const resultPre = document.createElement('pre');
-                            const resultStr = typeof data.data.result === 'object' 
+                            const resultStr = typeof data.data.result === 'object'
                                 ? JSON.stringify(data.data.result, null, 2)
                                 : String(data.data.result);
-                            
+
                             resultPre.textContent = resultStr;
                             currentToolResultDiv.appendChild(resultPre);
-                            
+
                             // Clear references
                             currentToolDiv = null;
                             currentToolResultDiv = null;
                         }
                         break;
-                    
+
                     case 'finish':
                         // Remove typing indicator
                         removeElement(typingIndicator);
-                        
+
                         // We're done, close the connection
                         eventSource.close();
                         state.eventSource = null;
                         resolve();
                         break;
-                        
+
                     case 'error':
                         console.error('Error in streaming response:', data.data);
                         eventSource.close();
                         state.eventSource = null;
                         reject(new Error(data.data.error));
                         break;
-                        
+
                     default:
                         console.log('Unknown event type:', data.type);
                 }
             } catch (error) {
                 console.error('Error processing event:', error);
+                // Display error message in the chat window
+                const contentDiv = getOrCreateAssistantMessage();
+                if (contentDiv) {
+                    const errorDiv = document.createElement('div');
+                    errorDiv.className = 'error-message';
+                    errorDiv.textContent = 'Sorry, there was an error processing your request. Please try again.';
+                    errorDiv.style.color = 'var(--error-color)';
+                    errorDiv.style.padding = '10px';
+                    errorDiv.style.margin = '5px 0';
+                    errorDiv.style.borderRadius = '5px';
+                    errorDiv.style.backgroundColor = 'rgba(244, 67, 54, 0.1)';
+                    contentDiv.appendChild(errorDiv);
+                }
                 eventSource.close();
                 state.eventSource = null;
                 reject(error);
             }
         };
-        
+
         eventSource.onerror = (error) => {
             console.error('EventSource error:', error);
+            // Display error message in the chat window
+            const contentDiv = getOrCreateAssistantMessage();
+            if (contentDiv) {
+                const errorDiv = document.createElement('div');
+                errorDiv.className = 'error-message';
+                errorDiv.textContent = 'Sorry, there was an error processing your request. Please try again.';
+                errorDiv.style.color = 'var(--error-color)';
+                errorDiv.style.padding = '10px';
+                errorDiv.style.margin = '5px 0';
+                errorDiv.style.borderRadius = '5px';
+                errorDiv.style.backgroundColor = 'rgba(244, 67, 54, 0.1)';
+                contentDiv.appendChild(errorDiv);
+            }
             eventSource.close();
             state.eventSource = null;
             reject(new Error('Connection error'));
@@ -444,20 +470,20 @@ function processStreamingMessage(message, typingIndicator) {
 function addMessage(content, role) {
     const messageContainer = document.createElement('div');
     messageContainer.className = `message-container ${role}-message`;
-    
+
     const messageDiv = document.createElement('div');
     messageDiv.className = 'message';
-    
+
     if (role === 'user') {
         messageDiv.textContent = content;
     } else {
         // For assistant messages, parse markdown
         messageDiv.innerHTML = marked.parse(content);
     }
-    
+
     messageContainer.appendChild(messageDiv);
     chatMessages.appendChild(messageContainer);
-    
+
     scrollToBottom();
     return messageContainer;
 }
@@ -467,7 +493,7 @@ function addTypingIndicator() {
     typingDiv.className = 'typing-indicator';
     typingDiv.innerHTML = '<span></span><span></span><span></span>';
     chatMessages.appendChild(typingDiv);
-    
+
     scrollToBottom();
     return typingDiv;
 }
@@ -487,7 +513,7 @@ function toggleModal(modal, show) {
         modal.classList.add('active');
     } else {
         modal.classList.remove('active');
-        
+
         // Reset fields if closing
         if (modal === bugModal) {
             bugDescription.value = '';
@@ -509,16 +535,16 @@ async function handleClearMemory() {
                 reset_all: false
             })
         });
-        
+
         const data = await response.json();
-        
+
         if (response.ok && data.success) {
             // Display welcome message
             displayWelcomeMessage();
-            
+
             // Add system message
             addMessage('Memory cleared. How can I help you today?', 'assistant');
-            
+
             // Close modal
             toggleModal(clearMemoryModal, false);
         } else {
@@ -537,7 +563,7 @@ async function handleBugReport() {
         alert('Please describe the issue before submitting.');
         return;
     }
-    
+
     try {
         // Collect additional info for the bug report
         const reportData = {
@@ -549,7 +575,7 @@ async function handleBugReport() {
                 height: window.innerHeight
             }
         };
-        
+
         const response = await fetch('/api/report-bug', {
             method: 'POST',
             headers: {
@@ -560,13 +586,13 @@ async function handleBugReport() {
                 report_data: reportData
             })
         });
-        
+
         const data = await response.json();
-        
+
         if (response.ok && data.success) {
             // Close modal
             toggleModal(bugModal, false);
-            
+
             // Add confirmation message
             addMessage('Bug report submitted. Thank you for helping improve Moji Assistant!', 'assistant');
         } else {
@@ -584,22 +610,22 @@ function handleLogout() {
         state.eventSource.close();
         state.eventSource = null;
     }
-    
+
     // Clear local storage
     localStorage.removeItem('mojiUserId');
     localStorage.removeItem('mojiUserToken');
     localStorage.removeItem('mojiUserProfile');
-    
+
     // Reset state
     state.userId = null;
     state.userToken = null;
     state.userProfile = null;
     state.isAuthenticated = false;
-    
+
     // Clear UI
     emailInput.value = '';
     chatMessages.innerHTML = '';
-    
+
     // Switch back to login screen
     chatScreen.classList.remove('active');
     loginScreen.classList.add('active');
