@@ -75,8 +75,17 @@ function init() {
     const savedUserToken = localStorage.getItem('mojiUserToken');
     const savedUserProfile = localStorage.getItem('mojiUserProfile');
     
-    // Initialize streaming mode from toggle
-    state.streamingMode = streamToggle.checked;
+    // Initialize streaming mode from localStorage or default to toggle's checked state
+    const savedStreamingMode = localStorage.getItem('mojiStreamingMode');
+    if (savedStreamingMode !== null) {
+        // Convert string 'true'/'false' to boolean
+        state.streamingMode = savedStreamingMode === 'true';
+        // Update the toggle to match the saved state
+        streamToggle.checked = state.streamingMode;
+    } else {
+        // Default to the toggle's initial state
+        state.streamingMode = streamToggle.checked;
+    }
 
     if (savedUserId && savedUserToken) {
         state.userId = savedUserId;
@@ -149,7 +158,35 @@ async function loadConversationHistory() {
                 
                 // Now add the regular message
                 if (role === 'assistant') {
-                    currentAssistantMessage = addMessage(content, role);
+                    // Check if the message content is JSON
+                    try {
+                        // First check if content is already an object
+                        if (typeof content === 'object' && content !== null) {
+                            // Content is already an object, use directly
+                            currentAssistantMessage = addJSONMessage(content);
+                        } 
+                        // Then check if content is a JSON string
+                        else if (typeof content === 'string' && 
+                                (content.trim().startsWith('{') || content.trim().startsWith('['))) {
+                            try {
+                                // Try to parse it as JSON
+                                const jsonContent = JSON.parse(content);
+                                // Create a custom message with the JSON and rendered views
+                                currentAssistantMessage = addJSONMessage(jsonContent);
+                            } catch (jsonError) {
+                                // If JSON parsing fails, treat as regular message
+                                console.log('Failed to parse message as JSON:', jsonError);
+                                currentAssistantMessage = addMessage(content, role);
+                            }
+                        } else {
+                            // Regular text message
+                            currentAssistantMessage = addMessage(content, role);
+                        }
+                    } catch (e) {
+                        // If any error occurs, treat as regular message
+                        console.log('Error processing message:', e);
+                        currentAssistantMessage = addMessage(content, role);
+                    }
                 } else if (role === 'user') {
                     addMessage(content, role);
                     currentAssistantMessage = null; // Reset when user message encountered
@@ -217,6 +254,8 @@ function handleInputChange() {
 
 function toggleStreamingMode(e) {
     state.streamingMode = e.target.checked;
+    // Save streaming mode preference to localStorage
+    localStorage.setItem('mojiStreamingMode', state.streamingMode);
     console.log(`Streaming mode ${state.streamingMode ? 'enabled' : 'disabled'}`);
 }
 
@@ -363,45 +402,381 @@ async function processNonStreamingMessage(message, typingIndicator) {
         // Remove typing indicator
         removeElement(typingIndicator);
         
-        // Create message container
-        const messageContainer = document.createElement('div');
-        messageContainer.className = 'message-container assistant-message';
-        
-        const messageDiv = document.createElement('div');
-        messageDiv.className = 'message';
-        
         // Handle JSON response
         const responseData = data.response;
         
         if (typeof responseData === 'object') {
-            // Create a formatted JSON display
-            const contentDiv = document.createElement('div');
-            contentDiv.className = 'message-content';
-            
-            // Create a pre element for JSON
-            const jsonPre = document.createElement('pre');
-            jsonPre.className = 'json-response';
-            jsonPre.textContent = JSON.stringify(responseData, null, 2);
-            
-            contentDiv.appendChild(jsonPre);
-            messageDiv.appendChild(contentDiv);
+            // Use our shared function to create JSON message with toggle
+            addJSONMessage(responseData);
         } else {
             // Regular text message
-            const contentDiv = document.createElement('div');
-            contentDiv.className = 'message-content';
-            contentDiv.innerHTML = marked.parse(responseData);
-            messageDiv.appendChild(contentDiv);
+            addMessage(responseData, 'assistant');
         }
-        
-        messageContainer.appendChild(messageDiv);
-        chatMessages.appendChild(messageContainer);
-        
-        scrollToBottom();
         
     } catch (error) {
         console.error('Error in non-streaming request:', error);
         throw error;
     }
+}
+
+// UI Generators for different response types
+function createMoviesDataUI(data) {
+    const container = document.createElement('div');
+    container.className = 'movies-data-container';
+    
+    // Add status and explanation if available
+    if (data.status !== undefined) {
+        const statusBar = document.createElement('div');
+        statusBar.className = `status-bar ${data.status ? 'success' : 'error'}`;
+        statusBar.innerHTML = data.status 
+            ? '<i class="fas fa-check-circle"></i> Movies found' 
+            : '<i class="fas fa-exclamation-circle"></i> No movies found';
+        container.appendChild(statusBar);
+    }
+    
+    if (data.explanation) {
+        const explanation = document.createElement('p');
+        explanation.className = 'movie-explanation';
+        explanation.textContent = data.explanation;
+        container.appendChild(explanation);
+    }
+    
+    // Create movie grid
+    if (data.movies && data.movies.length > 0) {
+        const movieGrid = document.createElement('div');
+        movieGrid.className = 'movie-grid';
+        
+        data.movies.forEach(movie => {
+            const movieCard = document.createElement('div');
+            movieCard.className = 'movie-card';
+            
+            // Movie poster
+            const posterContainer = document.createElement('div');
+            posterContainer.className = 'movie-poster';
+            
+            // For movie suggestions, we have tmdb_id which we can use to create a poster URL
+            if (movie.tmdb_id) {
+                // Create a fetch request to get the actual poster path using a public API
+                fetch(`/api/movie-poster?tmdb_id=${movie.tmdb_id}&type=${movie.t}`)
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.success && data.poster_path) {
+                            const posterUrl = `https://image.tmdb.org/t/p/w500${data.poster_path}`;
+                            posterContainer.innerHTML = `<img src="${posterUrl}" alt="${movie.n}" onerror="this.onerror=null; this.parentNode.innerHTML='<div class=\\'poster-placeholder\\'><i class=\\'fas fa-film\\'></i><span>${movie.n}</span></div>';">`;
+                        } else {
+                            // Fallback to placeholder
+                            posterContainer.innerHTML = `
+                                <div class="poster-placeholder">
+                                    <i class="fas fa-film"></i>
+                                    <span>${movie.n}</span>
+                                </div>`;
+                        }
+                    })
+                    .catch(error => {
+                        console.error('Error fetching poster:', error);
+                        // Fallback to placeholder on error
+                        posterContainer.innerHTML = `
+                            <div class="poster-placeholder">
+                                <i class="fas fa-film"></i>
+                                <span>${movie.n}</span>
+                            </div>`;
+                    });
+                
+                // Start with placeholder while loading
+                posterContainer.innerHTML = `
+                    <div class="poster-placeholder loading">
+                        <i class="fas fa-spinner fa-spin"></i>
+                        <span>${movie.n}</span>
+                    </div>`;
+            } else if (movie.poster_path) {
+                if (movie.poster_path.startsWith('http')) {
+                    // Direct poster URL
+                    posterContainer.innerHTML = `<img src="${movie.poster_path}" alt="${movie.n}" onerror="this.onerror=null; this.parentNode.innerHTML='<div class=\\'poster-placeholder\\'><i class=\\'fas fa-film\\'></i><span>${movie.n}</span></div>';">`;
+                } else if (movie.poster_path.startsWith('/')) {
+                    // TMDB poster path format
+                    const tmdbPosterUrl = `https://image.tmdb.org/t/p/w500${movie.poster_path}`;
+                    posterContainer.innerHTML = `<img src="${tmdbPosterUrl}" alt="${movie.n}" onerror="this.onerror=null; this.parentNode.innerHTML='<div class=\\'poster-placeholder\\'><i class=\\'fas fa-film\\'></i><span>${movie.n}</span></div>';">`;
+                }
+            } else {
+                // Fallback to placeholder with title
+                posterContainer.innerHTML = `
+                    <div class="poster-placeholder">
+                        <i class="fas fa-film"></i>
+                        <span>${movie.n}</span>
+                    </div>`;
+            }
+            
+            // Movie info
+            const movieInfo = document.createElement('div');
+            movieInfo.className = 'movie-info';
+            
+            const movieTitle = document.createElement('h3');
+            movieTitle.className = 'movie-title';
+            movieTitle.textContent = movie.n;
+            
+            const movieYear = document.createElement('div');
+            movieYear.className = 'movie-year';
+            movieYear.textContent = movie.y;
+            
+            const movieType = document.createElement('div');
+            movieType.className = 'movie-type';
+            movieType.textContent = movie.t === 'm' ? 'Movie' : 'TV Show';
+            
+            // Assemble movie card
+            movieInfo.appendChild(movieTitle);
+            movieInfo.appendChild(movieYear);
+            movieInfo.appendChild(movieType);
+            
+            movieCard.appendChild(posterContainer);
+            movieCard.appendChild(movieInfo);
+            
+            // Add trailer button if available
+            if (movie.trailer_url) {
+                const trailerBtn = document.createElement('button');
+                trailerBtn.className = 'trailer-btn';
+                trailerBtn.innerHTML = '<i class="fas fa-play"></i> Trailer';
+                trailerBtn.setAttribute('data-trailer-url', movie.trailer_url);
+                trailerBtn.addEventListener('click', (e) => {
+                    // Open trailer in a modal or new window
+                    window.open(movie.trailer_url, '_blank');
+                });
+                movieCard.appendChild(trailerBtn);
+            }
+            
+            movieGrid.appendChild(movieCard);
+        });
+        
+        container.appendChild(movieGrid);
+    } else {
+        // No movies message
+        const noMovies = document.createElement('div');
+        noMovies.className = 'no-movies';
+        noMovies.innerHTML = '<i class="fas fa-film"></i> No movies available';
+        container.appendChild(noMovies);
+    }
+    
+    return container;
+}
+
+function createTrailerDataUI(data) {
+    const container = document.createElement('div');
+    container.className = 'trailer-data-container';
+    
+    // Movie info section
+    const movieInfo = document.createElement('div');
+    movieInfo.className = 'trailer-movie-info';
+    
+    const movieTitle = document.createElement('h3');
+    movieTitle.textContent = data.movie_title;
+    
+    const movieDetails = document.createElement('div');
+    movieDetails.className = 'trailer-movie-details';
+    movieDetails.innerHTML = `
+        <div class="release-date"><i class="fas fa-calendar"></i> ${data.release_date}</div>
+    `;
+    
+    const movieOverview = document.createElement('p');
+    movieOverview.className = 'trailer-movie-overview';
+    movieOverview.textContent = data.overview;
+    
+    movieInfo.appendChild(movieTitle);
+    movieInfo.appendChild(movieDetails);
+    movieInfo.appendChild(movieOverview);
+    
+    // Video player section
+    const videoContainer = document.createElement('div');
+    videoContainer.className = 'trailer-video-container';
+    
+    // Extract YouTube ID if it's a YouTube URL
+    let videoId = '';
+    if (data.trailer_url && data.trailer_url.includes('youtube.com')) {
+        const url = new URL(data.trailer_url);
+        videoId = url.searchParams.get('v');
+    } else if (data.trailer_url && data.trailer_url.includes('youtu.be')) {
+        videoId = data.trailer_url.split('/').pop();
+    }
+    
+    if (videoId) {
+        // Create thumbnail with play button instead of embedding iframe
+        videoContainer.innerHTML = `
+            <div class="video-thumbnail" data-video-id="${videoId}">
+                <img src="https://img.youtube.com/vi/${videoId}/0.jpg" alt="Trailer thumbnail">
+                <div class="play-button">
+                    <i class="fas fa-play"></i>
+                </div>
+            </div>
+            <a href="${data.trailer_url}" target="_blank" class="watch-on-youtube">
+                <i class="fab fa-youtube"></i> Watch on YouTube
+            </a>
+        `;
+        
+        // Add click handler to open YouTube
+        const thumbnail = videoContainer.querySelector('.video-thumbnail');
+        thumbnail.addEventListener('click', () => {
+            window.open(data.trailer_url, '_blank');
+        });
+    } else {
+        // Fallback if not a YouTube URL
+        videoContainer.innerHTML = `
+            <div class="trailer-link">
+                <a href="${data.trailer_url}" target="_blank">
+                    <i class="fas fa-external-link-alt"></i> Watch Trailer
+                </a>
+            </div>
+        `;
+    }
+    
+    container.appendChild(movieInfo);
+    container.appendChild(videoContainer);
+    
+    return container;
+}
+
+function createMovieInfoUI(data) {
+    const container = document.createElement('div');
+    container.className = 'movie-info-container';
+    
+    // Original question
+    const questionSection = document.createElement('div');
+    questionSection.className = 'movie-info-question';
+    questionSection.innerHTML = `<i class="fas fa-question-circle"></i> <span>${data.question}</span>`;
+    
+    // Answer section
+    const answerSection = document.createElement('div');
+    answerSection.className = 'movie-info-answer';
+    answerSection.innerHTML = marked.parse(data.answer);
+    
+    container.appendChild(questionSection);
+    container.appendChild(answerSection);
+    
+    // Related movies if available
+    if (data.related_movies && data.related_movies.length > 0) {
+        const relatedMoviesSection = document.createElement('div');
+        relatedMoviesSection.className = 'related-movies-section';
+        
+        const relatedTitle = document.createElement('h4');
+        relatedTitle.textContent = 'Related Movies';
+        relatedMoviesSection.appendChild(relatedTitle);
+        
+        const moviesList = document.createElement('div');
+        moviesList.className = 'related-movies-list';
+        
+        data.related_movies.forEach(movie => {
+            const movieItem = document.createElement('div');
+            movieItem.className = 'related-movie-item';
+            
+            // Check if we have poster information
+            let movieIconHTML = '';
+            
+            // For movie suggestions with tmdb_id, fetch the poster
+            if (movie.tmdb_id) {
+                // Create a loading placeholder
+                movieIconHTML = `<i class="fas fa-spinner fa-spin"></i>`;
+                
+                // Fetch the poster path
+                fetch(`/api/movie-poster?tmdb_id=${movie.tmdb_id}&type=${movie.t}`)
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.success && data.poster_path) {
+                            const posterUrl = `https://image.tmdb.org/t/p/w92${data.poster_path}`;
+                            const posterImg = `<img src="${posterUrl}" alt="${movie.n}" onerror="this.onerror=null; this.src=''; this.parentNode.innerHTML='<i class=\\'fas fa-film\\'></i>';">`;
+                            movieItem.querySelector('.related-movie-icon').innerHTML = posterImg;
+                        } else {
+                            movieItem.querySelector('.related-movie-icon').innerHTML = `<i class="fas fa-film"></i>`;
+                        }
+                    })
+                    .catch(error => {
+                        console.error('Error fetching poster for related movie:', error);
+                        movieItem.querySelector('.related-movie-icon').innerHTML = `<i class="fas fa-film"></i>`;
+                    });
+            } else if (movie.poster_path && movie.poster_path.startsWith('http')) {
+                // Direct poster URL
+                movieIconHTML = `<img src="${movie.poster_path}" alt="${movie.n}" onerror="this.onerror=null; this.src=''; this.parentNode.innerHTML='<i class=\\'fas fa-film\\'></i>';">`;
+            } else if (movie.poster_path && movie.poster_path.startsWith('/')) {
+                // TMDB poster path format
+                const tmdbPosterUrl = `https://image.tmdb.org/t/p/w92${movie.poster_path}`;
+                movieIconHTML = `<img src="${tmdbPosterUrl}" alt="${movie.n}" onerror="this.onerror=null; this.src=''; this.parentNode.innerHTML='<i class=\\'fas fa-film\\'></i>';">`;
+            } else {
+                // Fallback to icon
+                movieIconHTML = `<i class="fas fa-film"></i>`;
+            }
+            
+            movieItem.innerHTML = `
+                <div class="related-movie-icon">${movieIconHTML}</div>
+                <div class="related-movie-details">
+                    <div class="related-movie-title">${movie.n}</div>
+                    <div class="related-movie-year">${movie.y}</div>
+                </div>
+            `;
+            
+            moviesList.appendChild(movieItem);
+        });
+        
+        relatedMoviesSection.appendChild(moviesList);
+        container.appendChild(relatedMoviesSection);
+    }
+    
+    // Sources if available
+    if (data.sources && data.sources.length > 0) {
+        const sourcesSection = document.createElement('div');
+        sourcesSection.className = 'sources-section';
+        
+        const sourcesTitle = document.createElement('div');
+        sourcesTitle.className = 'sources-title';
+        sourcesTitle.innerHTML = '<i class="fas fa-book"></i> Sources';
+        
+        const sourcesList = document.createElement('ul');
+        sourcesList.className = 'sources-list';
+        
+        data.sources.forEach(source => {
+            const sourceItem = document.createElement('li');
+            sourceItem.textContent = source;
+            sourcesList.appendChild(sourceItem);
+        });
+        
+        sourcesSection.appendChild(sourcesTitle);
+        sourcesSection.appendChild(sourcesList);
+        container.appendChild(sourcesSection);
+    }
+    
+    return container;
+}
+
+function createTextResponseUI(data) {
+    const container = document.createElement('div');
+    container.className = 'text-response-container';
+    
+    // Main content
+    const contentSection = document.createElement('div');
+    contentSection.className = 'text-response-content';
+    contentSection.innerHTML = marked.parse(data.content);
+    
+    container.appendChild(contentSection);
+    
+    // Relevant docs if available
+    if (data.relevant_docs && data.relevant_docs.length > 0) {
+        const docsSection = document.createElement('div');
+        docsSection.className = 'relevant-docs-section';
+        
+        const docsTitle = document.createElement('div');
+        docsTitle.className = 'docs-title';
+        docsTitle.innerHTML = '<i class="fas fa-file-alt"></i> Relevant Documents';
+        
+        const docsList = document.createElement('ul');
+        docsList.className = 'docs-list';
+        
+        data.relevant_docs.forEach(doc => {
+            const docItem = document.createElement('li');
+            docItem.textContent = doc;
+            docsList.appendChild(docItem);
+        });
+        
+        docsSection.appendChild(docsTitle);
+        docsSection.appendChild(docsList);
+        container.appendChild(docsSection);
+    }
+    
+    return container;
 }
 
 function processStreamingMessage(message, typingIndicator) {
@@ -938,6 +1313,123 @@ function addMessage(content, role) {
     messageContainer.appendChild(messageDiv);
     chatMessages.appendChild(messageContainer);
 
+    scrollToBottom();
+    return messageContainer;
+}
+
+function addJSONMessage(responseData) {
+    const messageContainer = document.createElement('div');
+    messageContainer.className = 'message-container assistant-message';
+    
+    const messageDiv = document.createElement('div');
+    messageDiv.className = 'message';
+    
+    // Create a formatted JSON display with toggle
+    const contentDiv = document.createElement('div');
+    contentDiv.className = 'message-content';
+    
+    // Create the view toggle
+    const viewToggle = document.createElement('div');
+    viewToggle.className = 'view-toggle';
+    
+    const toggleButton = document.createElement('button');
+    toggleButton.className = 'toggle-view-btn';
+    toggleButton.innerHTML = '<i class="fas fa-exchange-alt"></i> Show JSON';
+    viewToggle.appendChild(toggleButton);
+    
+    contentDiv.appendChild(viewToggle);
+    
+    // Container for both views
+    const viewsContainer = document.createElement('div');
+    viewsContainer.className = 'views-container';
+    
+    // JSON view
+    const jsonView = document.createElement('div');
+    jsonView.className = 'view json-view';
+    
+    const jsonPre = document.createElement('pre');
+    jsonPre.className = 'json-response';
+    jsonPre.textContent = JSON.stringify(responseData, null, 2);
+    
+    jsonView.appendChild(jsonPre);
+    viewsContainer.appendChild(jsonView);
+    
+    // Rendered view
+    const renderedView = document.createElement('div');
+    renderedView.className = 'view rendered-view active';
+    
+    // Determine the type of response and create appropriate UI
+    responseData.type = responseData.type || responseData.output_type;
+    if (responseData.type) {
+        console.log(`Creating UI for response type: ${responseData.type}`);
+        switch (responseData.type) {
+            case 'movie_json':
+                renderedView.appendChild(createMoviesDataUI(responseData.data));
+                break;
+            case 'trailer_json':
+                renderedView.appendChild(createTrailerDataUI(responseData.data));
+                break;
+            case 'movie_info':
+                renderedView.appendChild(createMovieInfoUI(responseData.data));
+                break;
+            case 'text_response':
+                renderedView.appendChild(createTextResponseUI(responseData.data));
+                break;
+            default:
+                // Fallback for unknown types
+                const unknownTypeMessage = document.createElement('div');
+                unknownTypeMessage.className = 'unknown-type-message';
+                unknownTypeMessage.textContent = `Unknown response type: ${responseData.type}`;
+                renderedView.appendChild(unknownTypeMessage);
+        }
+    } else {
+        // Generic UI for unknown structure
+        console.log('Creating generic UI for JSON without type field:', responseData);
+        const genericUI = document.createElement('div');
+        genericUI.className = 'generic-json-ui';
+        genericUI.innerHTML = '<p>Custom JSON response</p>';
+        
+        // Try to extract meaningful data from various properties
+        if (responseData.content) {
+            const contentPara = document.createElement('p');
+            contentPara.textContent = responseData.content;
+            genericUI.appendChild(contentPara);
+        } else if (responseData.message) {
+            const messagePara = document.createElement('p');
+            messagePara.textContent = responseData.message;
+            genericUI.appendChild(messagePara);
+        } else if (responseData.response) {
+            const responsePara = document.createElement('p');
+            responsePara.textContent = responseData.response;
+            genericUI.appendChild(responsePara);
+        }
+        
+        // Look for movie data even without explicit type
+        if (responseData.movies || responseData.data?.movies) {
+            const movieData = responseData.movies ? responseData : responseData.data;
+            renderedView.innerHTML = ''; // Clear previous content
+            renderedView.appendChild(createMoviesDataUI(movieData));
+        }
+        
+        renderedView.appendChild(genericUI);
+    }
+    
+    viewsContainer.appendChild(renderedView);
+    contentDiv.appendChild(viewsContainer);
+    
+    // Add toggle functionality
+    toggleButton.addEventListener('click', () => {
+        jsonView.classList.toggle('active');
+        renderedView.classList.toggle('active');
+        toggleButton.innerHTML = jsonView.classList.contains('active') 
+            ? '<i class="fas fa-exchange-alt"></i> Show Rendered' 
+            : '<i class="fas fa-exchange-alt"></i> Show JSON';
+    });
+    
+    messageDiv.appendChild(contentDiv);
+    messageContainer.appendChild(messageDiv);
+    chatMessages.appendChild(messageContainer);
+    
     scrollToBottom();
     return messageContainer;
 }

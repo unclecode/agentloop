@@ -215,11 +215,11 @@ You always response in JSON following Talk2MeLLMResponse schema:
         Returns:
             Response dictionary with output_type and response
         """
-        # Process the message using the agent with context_data for credentials
+        # Process the message using the agent with shared_data for credentials
         result = self.agent.process_message(
             message,
             context=self._get_context(),
-            context_data={
+            shared_data={
                 "user_id": self.user_id,
                 "user_token": self.user_token
             },
@@ -239,12 +239,12 @@ You always response in JSON following Talk2MeLLMResponse schema:
         Yields:
             Streaming event dictionaries from agentloop
         """
-        # Process the message using agent with streaming and context_data for credentials
+        # Process the message using agent with streaming and shared_data for credentials
         for stream_event in self.agent.streamed_process_message(
             message,
             schema=Talk2MeLLMResponse.model_json_schema() if self.apply_output_schema else None,
             context=self._get_context(),
-            context_data={
+            shared_data={
                 "user_id": self.user_id,
                 "user_token": self.user_token
             }
@@ -310,38 +310,42 @@ You always response in JSON following Talk2MeLLMResponse schema:
             if 'type' in json_response:
                 return_type = json_response['type']
                 data = json_response.get('data', {})
+
+                response = {
+                    "type": str(return_type),
+                    "data": data
+                }
+
+                return response
                 
-                # Handle different response types
-                if return_type == ResponseTypeEnum.MOVIE_JSON:
-                    return {
-                        "output_type": "movie_json",
-                        "response": data  # This should include 'movies' field
-                    }
-                elif return_type == ResponseTypeEnum.LIST:
-                    return {
-                        "output_type": "list",
-                        "response": data.get("items", [])
-                    }
-                elif return_type == ResponseTypeEnum.MOVIE_INFO:
-                    return {
-                        "output_type": "movie_info",
-                        "response": data
-                    }
-                elif return_type == ResponseTypeEnum.TEXT_RESPONSE:
-                    # Handle app support assistant responses
-                    return {
-                        "output_type": "text_response",
-                        "response": {
-                            "content": json_response.get("content", ""),
-                            "relevant_docs": json_response.get("relevant_docs", [])
-                        }
-                    }
-                else:
-                    # Default case for other JSON responses
-                    return {
-                        "output_type": return_type,
-                        "response": data
-                    }
+                # # Handle different response types
+                # if return_type == ResponseTypeEnum.MOVIE_JSON:
+                #     return {
+                #         "type": "movie_json",
+                #         "data": data  # This should include 'movies' field
+                #     }
+                # elif return_type == ResponseTypeEnum.LIST:
+                #     return {
+                #         "type": "list",
+                #         "data": data.get("items", [])
+                #     }
+                # elif return_type == ResponseTypeEnum.MOVIE_INFO:
+                #     return {
+                #         "type": "movie_info",
+                #         "resdataponse": data
+                #     }
+                # elif return_type == ResponseTypeEnum.TEXT_RESPONSE:
+                #     # Handle app support assistant responses
+                #     return {
+                #         "type": "text_response",
+                #         "data": data
+                #     }
+                # else:
+                #     # Default case for other JSON responses
+                #     return {
+                #         "type": return_type,
+                #         "data": data
+                #     }
             
             # If we have JSON but no type field, check for specific structures
             if 'suggestions' in json_response:

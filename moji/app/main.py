@@ -371,6 +371,57 @@ def report_bug():
             "success": False, 
             "error": str(e)
         }), 500
+        
+@app.route('/api/movie-poster', methods=['GET'])
+def get_movie_poster():
+    """Get a movie poster path from TMDB ID"""
+    tmdb_id = request.args.get('tmdb_id')
+    content_type = request.args.get('type', 'm')  # 'm' for movie, 'tv' for TV shows
+    
+    if not tmdb_id:
+        return jsonify({"success": False, "error": "TMDB ID is required"}), 400
+    
+    # Convert type format: 'm' -> 'movie', 'tv-series' or 'v' -> 'tv'
+    if content_type == 'm':
+        media_type = 'movie'
+    elif content_type in ['v', 'tv-series', 'tv-show', 'tv']:
+        media_type = 'tv'
+    else:
+        media_type = 'movie'  # Default to movie
+    
+    try:
+        # Import the TMDB service
+        from services.tmdb import TMDBService
+        
+        # Create a TMDB service instance
+        tmdb_service = TMDBService()
+        
+        # Get movie/TV show details including poster path
+        if media_type == 'movie':
+            result = tmdb_service.get_movie(tmdb_id)
+        else:
+            result = tmdb_service.get_tv_show(tmdb_id)
+        
+        # Check if we got a valid result with a poster path
+        if result and 'poster_path' in result and result['poster_path']:
+            return jsonify({
+                "success": True,
+                "poster_path": result['poster_path'],
+                "media_type": media_type
+            })
+        else:
+            return jsonify({
+                "success": False,
+                "error": "No poster found",
+                "media_type": media_type
+            })
+    except Exception as e:
+        print(f"Error getting poster: {str(e)}")
+        return jsonify({
+            "success": False,
+            "error": str(e),
+            "media_type": media_type
+        }), 500
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=9030, debug=True)

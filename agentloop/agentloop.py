@@ -350,7 +350,7 @@ class AgentLoop:
         context: Optional[Union[str, List[Dict[str, Any]]]] = None,
         schema: Optional[Dict[str, Any]] = None,
         token_callback: Optional[Callable[[Dict[str, int]], None]] = None,
-        context_data: Dict[str, Any] = None
+        shared_data: Dict[str, Any] = None
     ) -> Dict[str, Any]:
         """
         Process a user message and generate a response.
@@ -362,7 +362,7 @@ class AgentLoop:
             context: Additional context to include
             schema: JSON schema for structured output
             token_callback: Function to call with token usage statistics
-            context_data: Additional data to pass to tools (not part of conversation)
+            shared_data: Additional data to pass to tools (not part of conversation)
             
         Returns:
             Dictionary with response and usage statistics
@@ -370,7 +370,7 @@ class AgentLoop:
         import openai
         
         template_params = template_params or {}
-        context_data = context_data or {}
+        shared_data = shared_data or {}
         
         api_params, formatted_message = self._prepare_api_call(
             message, user_template, template_params, context, schema
@@ -415,9 +415,9 @@ class AgentLoop:
                 if function_name in tool_map:
                     function = tool_map[function_name]
                     try:
-                        # Pass context_data to the function if available
-                        if context_data:
-                            function_response = function(**function_args, **context_data)
+                        # Pass shared_data to the function if available
+                        if shared_data:
+                            function_response = function(**function_args, **shared_data)
                         else:
                             function_response = function(**function_args)
                         result = str(function_response)
@@ -528,7 +528,7 @@ class AgentLoop:
         template_params: Dict[str, Any] = None,
         context: Optional[Union[str, List[Dict[str, Any]]]] = None,
         schema: Optional[Dict[str, Any]] = None,
-        context_data: Dict[str, Any] = None
+        shared_data: Dict[str, Any] = None
     ):
         """
         Process a user message and yield streaming updates.
@@ -546,7 +546,7 @@ class AgentLoop:
             template_params: Variables to render the template
             context: Additional context to include
             schema: JSON schema for structured output
-            context_data: Additional data to pass to tools (not part of conversation)
+            shared_data: Additional data to pass to tools (not part of conversation)
             
         Yields:
             Dictionaries with streaming updates during processing
@@ -554,7 +554,7 @@ class AgentLoop:
         import openai
         
         template_params = template_params or {}
-        context_data = context_data or {}
+        shared_data = shared_data or {}
         
         api_params, formatted_message = self._prepare_api_call(
             message, user_template, template_params, context, schema, stream=True
@@ -675,9 +675,9 @@ class AgentLoop:
                     if function_name in tool_map:
                         function = tool_map[function_name]
                         try:
-                            # Pass context_data to the function if available
-                            if context_data:
-                                function_response = function(**function_args, **context_data)
+                            # Pass shared_data to the function if available
+                            if shared_data:
+                                function_response = function(**function_args, **shared_data)
                             else:
                                 function_response = function(**function_args)
                             result = str(function_response)
