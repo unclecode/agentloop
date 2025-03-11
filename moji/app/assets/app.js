@@ -22,6 +22,7 @@ const clearMemoryModal = document.getElementById('clear-memory-modal');
 const closeClearModalBtn = document.getElementById('close-clear-modal-btn');
 const confirmClearBtn = document.getElementById('confirm-clear-btn');
 const cancelClearBtn = document.getElementById('cancel-clear-btn');
+const streamToggle = document.getElementById('stream-toggle');
 
 // App State
 const state = {
@@ -32,7 +33,8 @@ const state = {
     isProcessing: false,
     currentResponse: '',
     typingTimeout: null,
-    eventSource: null
+    eventSource: null,
+    streamingMode: true
 };
 
 // Event Listeners
@@ -49,6 +51,7 @@ cancelBugBtn.addEventListener('click', () => toggleModal(bugModal, false));
 closeClearModalBtn.addEventListener('click', () => toggleModal(clearMemoryModal, false));
 confirmClearBtn.addEventListener('click', handleClearMemory);
 cancelClearBtn.addEventListener('click', () => toggleModal(clearMemoryModal, false));
+streamToggle.addEventListener('change', toggleStreamingMode);
 
 // Suggestion buttons
 document.querySelectorAll('.suggestion-btn').forEach(btn => {
@@ -71,6 +74,9 @@ function init() {
     const savedUserId = localStorage.getItem('mojiUserId');
     const savedUserToken = localStorage.getItem('mojiUserToken');
     const savedUserProfile = localStorage.getItem('mojiUserProfile');
+    
+    // Initialize streaming mode from toggle
+    state.streamingMode = streamToggle.checked;
 
     if (savedUserId && savedUserToken) {
         state.userId = savedUserId;
@@ -209,6 +215,11 @@ function handleInputChange() {
     sendButton.disabled = !messageInput.value.trim();
 }
 
+function toggleStreamingMode(e) {
+    state.streamingMode = e.target.checked;
+    console.log(`Streaming mode ${state.streamingMode ? 'enabled' : 'disabled'}`);
+}
+
 async function handleLogin(e) {
     e.preventDefault();
 
@@ -298,8 +309,13 @@ async function handleSendMessage(e) {
     const typingIndicator = addTypingIndicator();
 
     try {
-        // Use the streaming API with user profile
-        await processStreamingMessage(message, typingIndicator);
+        if (state.streamingMode) {
+            // Use the streaming API with user profile
+            await processStreamingMessage(message, typingIndicator);
+        } else {
+            // Use the non-streaming API
+            await processNonStreamingMessage(message, typingIndicator);
+        }
     } catch (error) {
         console.error('Error sending message:', error);
         removeElement(typingIndicator);
@@ -307,6 +323,84 @@ async function handleSendMessage(e) {
     } finally {
         state.isProcessing = false;
         scrollToBottom();
+    }
+}
+
+async function processNonStreamingMessage(message, typingIndicator) {
+    try {
+        console.log('Processing non-streaming message');
+        
+        // Encode user profile for the request
+        let userProfileData = {};
+        if (state.userProfile) {
+            try {
+                userProfileData = state.userProfile;
+            } catch (e) {
+                console.error('Failed to process user profile:', e);
+            }
+        }
+        
+        // Make the request to the non-streaming API
+        const response = await fetch('/api/chat', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                user_id: state.userId,
+                user_token: state.userToken,
+                message: message,
+                user_profile: userProfileData
+            })
+        });
+        
+        const data = await response.json();
+        
+        if (!response.ok || !data.success) {
+            throw new Error(data.error || 'Failed to process message');
+        }
+        
+        // Remove typing indicator
+        removeElement(typingIndicator);
+        
+        // Create message container
+        const messageContainer = document.createElement('div');
+        messageContainer.className = 'message-container assistant-message';
+        
+        const messageDiv = document.createElement('div');
+        messageDiv.className = 'message';
+        
+        // Handle JSON response
+        const responseData = data.response;
+        
+        if (typeof responseData === 'object') {
+            // Create a formatted JSON display
+            const contentDiv = document.createElement('div');
+            contentDiv.className = 'message-content';
+            
+            // Create a pre element for JSON
+            const jsonPre = document.createElement('pre');
+            jsonPre.className = 'json-response';
+            jsonPre.textContent = JSON.stringify(responseData, null, 2);
+            
+            contentDiv.appendChild(jsonPre);
+            messageDiv.appendChild(contentDiv);
+        } else {
+            // Regular text message
+            const contentDiv = document.createElement('div');
+            contentDiv.className = 'message-content';
+            contentDiv.innerHTML = marked.parse(responseData);
+            messageDiv.appendChild(contentDiv);
+        }
+        
+        messageContainer.appendChild(messageDiv);
+        chatMessages.appendChild(messageContainer);
+        
+        scrollToBottom();
+        
+    } catch (error) {
+        console.error('Error in non-streaming request:', error);
+        throw error;
     }
 }
 

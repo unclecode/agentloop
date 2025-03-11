@@ -332,7 +332,7 @@ You always response in JSON following Talk2MeLLMResponse schema:
                     return {
                         "output_type": "text_response",
                         "response": {
-                            "answer": json_response.get("answer", ""),
+                            "content": json_response.get("content", ""),
                             "relevant_docs": json_response.get("relevant_docs", [])
                         }
                     }

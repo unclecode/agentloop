@@ -66,7 +66,7 @@ def get_user_token(email: str) -> tuple[Optional[str], Optional[str], Optional[d
         return user.get('user_token'), user.get('user_id'), user_profile
     return None, None, None
 
-def get_assistant(user_id: str, user_token: str, user_profile: dict = None) -> MojiAssistant:
+def get_assistant(user_id: str, user_token: str, user_profile: dict = None, apply_output_schema : bool = False ) -> MojiAssistant:
     """
     Get or create a MojiAssistant instance for a user.
     
@@ -114,7 +114,7 @@ def get_assistant(user_id: str, user_token: str, user_profile: dict = None) -> M
         verbose=True,
         remember_tool_calls=True,
         synthesizer_model_id=MODELS.get("openai_4o_mini", "gpt-4o"),
-        apply_output_schema=False
+        apply_output_schema=apply_output_schema
     )
     
     # Store in active assistants
@@ -197,7 +197,7 @@ def chat():
     
     try:
         # Get assistant for this user with user profile
-        assistant = get_assistant(user_id, user_token, user_profile)
+        assistant = get_assistant(user_id, user_token, user_profile, apply_output_schema=True)
         
         # Process message
         result = assistant.chat(message)

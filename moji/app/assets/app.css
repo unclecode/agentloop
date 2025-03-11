@@ -215,6 +215,7 @@ button:disabled {
 .header-actions {
     display: flex;
     gap: 0.7rem;
+    align-items: center;
 }
 
 .header-actions button {
@@ -231,6 +232,74 @@ button:disabled {
     display: flex;
     align-items: center;
     justify-content: center;
+}
+
+/* Toggle switch styling */
+.toggle-container {
+    display: flex;
+    align-items: center;
+    margin-right: 5px;
+}
+
+.toggle-label {
+    font-size: 0.8rem;
+    margin-left: 5px;
+    color: var(--text-color);
+}
+
+.switch {
+    position: relative;
+    display: inline-block;
+    width: 36px;
+    height: 20px;
+}
+
+.switch input {
+    opacity: 0;
+    width: 0;
+    height: 0;
+}
+
+.slider {
+    position: absolute;
+    cursor: pointer;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: var(--border-color);
+    transition: .4s;
+}
+
+.slider:before {
+    position: absolute;
+    content: "";
+    height: 14px;
+    width: 14px;
+    left: 3px;
+    bottom: 3px;
+    background-color: white;
+    transition: .4s;
+}
+
+input:checked + .slider {
+    background-color: var(--primary-color);
+}
+
+input:focus + .slider {
+    box-shadow: 0 0 1px var(--primary-color);
+}
+
+input:checked + .slider:before {
+    transform: translateX(16px);
+}
+
+.slider.round {
+    border-radius: 34px;
+}
+
+.slider.round:before {
+    border-radius: 50%;
 }
 
 .header-actions button:hover {
@@ -373,6 +442,19 @@ main {
 .message-content ul, .message-content ol {
     padding-left: 1.2rem;
     margin-bottom: 0.8rem;
+}
+
+.json-response {
+    background-color: rgba(0, 0, 0, 0.2);
+    border-radius: 6px;
+    padding: 10px;
+    max-height: 400px;
+    overflow: auto;
+    font-family: 'Menlo', 'Monaco', 'Courier New', monospace;
+    font-size: 0.85rem;
+    margin: 0;
+    white-space: pre-wrap;
+    color: #64b5f6;
 }
 
 .typing-indicator {
