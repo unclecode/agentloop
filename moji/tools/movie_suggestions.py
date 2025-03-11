@@ -233,7 +233,7 @@ TOOL_SCHEMA = {
     "type": "function",
     "function": {
         "name": "what2watch",
-        "description": "Suggest content items (movies or TV series) based on the user's query or request",
+        "description": "Suggest content items (movies or TV series) based on the user mood or request. This has nothing to do with the main conversation.",
         "parameters": {
             "type": "object",
             "properties": {

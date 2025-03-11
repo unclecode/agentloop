@@ -1,18 +1,17 @@
-import os, sys
+import os
+import sys
 import json
 import time
 import traceback
 from datetime import datetime
 from typing import Optional, Dict, Any
 
-import agentloop.mem4ai
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
-from flask import Flask, request, jsonify, render_template, Response, session, stream_with_context
+from flask import Flask, request, jsonify, render_template, Response, stream_with_context
 from flask_cors import CORS
-import agentloop
 
 from config import DB_URI, DB_NAME, OPENAI_API_KEY, MODELS
 from moji_assistant import MojiAssistant
@@ -114,7 +113,8 @@ def get_assistant(user_id: str, user_token: str, user_profile: dict = None) -> M
         },
         verbose=True,
         remember_tool_calls=True,
-        synthesizer_model_id=MODELS.get("openai_4o_mini", "gpt-3.5-turbo")
+        synthesizer_model_id=MODELS.get("openai_4o_mini", "gpt-4o"),
+        apply_output_schema=False
     )
     
     # Store in active assistants
@@ -374,3 +374,4 @@ def report_bug():
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=9030, debug=True)
+

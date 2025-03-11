@@ -8,6 +8,7 @@ import os
 import json
 import datetime
 from typing import List, Dict, Any, Optional, Callable, Union, Tuple
+from pydantic import BaseModel
 
 from . import utils
 from .mem4ai import Mem4AI  # Import the memory implementation directly
@@ -317,10 +318,24 @@ class AgentLoop:
         
         # Add schema for structured output if provided
         if schema:
-            api_params["response_format"] = {
-                "type": "json_schema",
-                "json_schema": schema
-            }
+            # If type of schema is BaseModel just simplify pass it
+            if type(schema) is not dict and hasattr(schema, "model_dump_json"):
+                api_params["response_format"]  = schema
+            elif "name" in schema and "description" in schema and "schema" in schema:
+                api_params["response_format"] = {
+                    "type": "json_schema",
+                    "json_schema": schema
+                }
+            else:
+                api_params["response_format"] = {
+                    "type": "json_schema",
+                    "json_schema": {
+                        "name": "response",
+                        "description": "Structured response",
+                        "strict": True,
+                        "schema": schema
+                    }
+                }
         
         # Add additional parameters
         api_params.update(self.assistant.get("params", {}))

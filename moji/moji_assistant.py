@@ -5,7 +5,6 @@ This assistant provides movie recommendations, information about movies,
 and manages user favorite lists.
 """
 
-from multiprocessing import context
 import os
 import json
 import importlib
@@ -14,6 +13,8 @@ from glob import glob
 
 # Import agentloop components
 import agentloop
+
+from moji.libs.response_model import Talk2MeLLMResponse
 
 # Response type definitions
 class ResponseTypeEnum:
@@ -39,7 +40,8 @@ class MojiAssistant:
         tools_path: str = None,
         verbose: bool = True,
         remember_tool_calls: bool = False,
-        synthesizer_model_id: Optional[str] = None
+        synthesizer_model_id: Optional[str] = None,
+        apply_output_schema: bool = False
     ):
         """
         Initialize the Moji assistant.
@@ -54,6 +56,7 @@ class MojiAssistant:
             verbose: Whether to print debug information
             remember_tool_calls: Reserved for future use - tool calls are stored but not included in context
             synthesizer_model_id: Model to use for tool call synthesis, defaults to model_id if not provided
+            apply_output_schema: Whether to apply output schema for tool responses
         """
         self.user_id = user_id
         self.user_token = user_token
@@ -63,6 +66,7 @@ class MojiAssistant:
         self.verbose = verbose
         self.remember_tool_calls = remember_tool_calls
         self.synthesizer_model_id = synthesizer_model_id
+        self.apply_output_schema = apply_output_schema
         
         # Load tools and schemas from the tools directory
         self.tools, self.tool_schemas = self._load_tools(tools_path)
@@ -182,8 +186,24 @@ Focus on being conversational rather than just providing information.
 Your primary goal is to assist the user with their movie-related needs.
 You can provide recommendations, information, or help manage their favorite lists.
 """
+
         
-        return base_prompt + action_prompt
+        if self.apply_output_schema:
+            output_schema = ""
+            with open("moji/libs/response_model.py", "r") as f:
+                output_schema = f.read()
+            
+            output_format = f'''
+### Output Format
+You always response in JSON following Talk2MeLLMResponse schema:
+```python
+{output_schema}
+```
+'''
+        else:
+            output_format = ""
+
+        return base_prompt + action_prompt + output_format
     
     def chat(self, message: Union[str, Dict[str, Any]]) -> Dict[str, Any]:
         """
@@ -202,7 +222,8 @@ You can provide recommendations, information, or help manage their favorite list
             context_data={
                 "user_id": self.user_id,
                 "user_token": self.user_token
-            }
+            },
+            schema=Talk2MeLLMResponse.model_json_schema() if self.apply_output_schema else None
         )
         
         # Convert the response to the expected format
@@ -221,6 +242,7 @@ You can provide recommendations, information, or help manage their favorite list
         # Process the message using agent with streaming and context_data for credentials
         for stream_event in self.agent.streamed_process_message(
             message,
+            schema=Talk2MeLLMResponse.model_json_schema() if self.apply_output_schema else None,
             context=self._get_context(),
             context_data={
                 "user_id": self.user_id,
