@@ -267,12 +267,12 @@ TOOL_SCHEMA = {
     }
 }
 
-# Export tools dictionary for dynamic loading
-TOOLS = {
-    "what2watch": what2watch
-}
+# # Export tools dictionary for dynamic loading
+# TOOLS = {
+#     "what2watch": what2watch
+# }
 
-# Export schemas dictionary for dynamic loading
-TOOL_SCHEMAS = {
-    "what2watch": TOOL_SCHEMA
-}
+# # Export schemas dictionary for dynamic loading
+# TOOL_SCHEMAS = {
+#     "what2watch": TOOL_SCHEMA
+# }

@@ -15,6 +15,7 @@ from glob import glob
 import agentloop
 
 from moji.libs.response_model import Talk2MeLLMResponse
+from moji.libs.helpers import (update_movie_response, filter_movies_with_tmdb, load_and_render_prompt)
 
 # Response type definitions
 class ResponseTypeEnum:
@@ -162,35 +163,64 @@ class MojiAssistant:
         # For now, using a simplified approach
         
         action = self.action
-        base_prompt = """You are Moji, a friendly and knowledgeable movie assistant.
-You help users discover movies and TV shows based on their preferences.
-You can suggest content, provide information about movies, and manage user favorite lists.
-
-Movie Suggestions:
-One of your helpful tasks is to suggest movies to watch. This is not a cliché way of just dropping some high-rated and high-budget movies based on the user's preferred genre. Instead, I need you to act like a therapist. Ask them some questions and follow up with additional questions when they request movie suggestions. Try to identify connections in their recent life and then provide relevant suggestions. Observe what they need emotionally or mentally, and connect your suggestions to those needs so they understand why you recommend them. It's like finding a connection between story characters and the user. This approach creates a compelling effect.
-
-Attidtude:
-Your responses should be friendly, concise, and focused on helping the user find content they'll enjoy.
-When suggesting movies, prioritize quality recommendations over quantity. Use subtle humor and engaging language to keep the conversation interesting. Let them feel they are talking to their besty movie buddy.
-"""
+        prompt_name = {
+            "what2watch": "mojito_assistant",
+            "talk2me": "mojito_talk2me",
+            "ipu_therapist": "mojito_ipuTherapist",
+            "regenerate": "mojito_assistant"
+        }.get(action, "mojito_assistant")
+        user_details = self.params.get('user_details', {})
         
+        instructions, _ = load_and_render_prompt(prompt_name, user_details)
+        base_prompt = instructions
+        action_prompt = ""
+        
+#         base_prompt = """You are Moji, a friendly and knowledgeable movie assistant.
+# You help users discover movies and TV shows based on their preferences.
+# You can suggest content, provide information about movies, and manage user favorite lists.
+
+# Movie Suggestions:
+# One of your helpful tasks is to suggest movies to watch. This is not a cliché way of just dropping some high-rated and high-budget movies based on the user's preferred genre. Instead, I need you to act like a therapist. Ask them some questions and follow up with additional questions when they request movie suggestions. Try to identify connections in their recent life and then provide relevant suggestions. Observe what they need emotionally or mentally, and connect your suggestions to those needs so they understand why you recommend them. It's like finding a connection between story characters and the user. This approach creates a compelling effect.
+
+# Attidtude:
+# Your responses should be friendly, concise, and focused on helping the user find content they'll enjoy.
+# When suggesting movies, prioritize quality recommendations over quantity. Use subtle humor and engaging language to keep the conversation interesting. Let them feel they are talking to their besty movie buddy.
+# """
+
         # Add action-specific instructions
-        if action == "what2watch":
-            action_prompt = """
-Your primary goal is to suggest movies and TV shows that match the user's request.
-Use the what2watch tool when the user asks for recommendations.
+        if user_details.get("language", None):
+            lang_instructions, _ = load_and_render_prompt('language', user_details)
+            action_prompt += lang_instructions
+        
+        if self.action == 'assistant':
+            movie_style_instructions, _ = load_and_render_prompt('mojito_movieStyleGuide', user_details)
+            policy_instructions, _ = load_and_render_prompt('mojito_policy', user_details)
+            action_prompt += f"""
+{movie_style_instructions}
+{policy_instructions}
 """
+
+        elif action == "regenerate":
+            user_msg = user_details.get("user_message")
+            agent_response = user_details.get("agent_response")
+            additional_instructions += f"""Your task is to act as an AI agent that regenerates responses based on prior interactions. Your responses should be consistent and reflect the context of the conversation. You are only capable of regenerating conversations and not performing any actions such as creating lists, or adding movies or TV series to lists.
+**IMPORTANT** Ensure your new response is not the same as the original response. It should be a regenerated version.
+
+## User Original Message:
+{ user_msg }
+
+## Agent Original Response:
+{ agent_response }
+"""
+
         elif action == "talk2me":
-            action_prompt = """
-Your primary goal is to engage in friendly conversation about movies and TV shows.
-Focus on being conversational rather than just providing information.
-"""
+            add_instructions, _ = load_and_render_prompt('mojito_talk2meAdditional', user_details)
+            action_prompt += add_instructions
         else:
             action_prompt = """
 Your primary goal is to assist the user with their movie-related needs.
 You can provide recommendations, information, or help manage their favorite lists.
 """
-
         
         if self.apply_output_schema:
             output_schema = ""
@@ -209,7 +239,7 @@ For each suggestion, provide the name, TMDB ID, release year, and type (movie or
 Use your vast knowledge of cinema and TV to make appropriate suggestions. 
 If the user does not specify a number, suggest 3 by default.
 If you're unsure about the exact TMDB ID, leave it blank.
-Return the suggestions in JSON format compatible with the Suggestions schema which is called `MovieSuggestions`. It has to keys:
+Return the suggestions in JSON format compatible with the Suggestions schema which is called `MovieSuggestions`. It has these keys:
 1/ suggestions: List[MovieSuggestion], which MovieSuggestions has these keys (name, year, original_language, type, tmdb_id if you know it).
 2/ explanation: Optional[str] - a short explanation of why you made these suggestions, in case status is False, explain why couldn't make suggestions.
 3/ status: Optional[bool] - True if suggestions are made, False if not.
@@ -217,7 +247,6 @@ IMPORTANT: Avoid suggesting movies that have been previously recommended.
 
 '''
             
-
         else:
             output_format = ""
 
@@ -329,48 +358,59 @@ IMPORTANT: Avoid suggesting movies that have been previously recommended.
                 return_type = json_response['type']
                 data = json_response.get('data', {})
 
-                response = {
-                    "type": str(return_type),
-                    "data": data
-                }
-
-                return response
+                # response = {
+                #     "output_type": str(return_type),
+                #     "data": data
+                # }
+                # return response
                 
-                # # Handle different response types
-                # if return_type == ResponseTypeEnum.MOVIE_JSON:
-                #     return {
-                #         "type": "movie_json",
-                #         "data": data  # This should include 'movies' field
-                #     }
-                # elif return_type == ResponseTypeEnum.LIST:
-                #     return {
-                #         "type": "list",
-                #         "data": data.get("items", [])
-                #     }
-                # elif return_type == ResponseTypeEnum.MOVIE_INFO:
-                #     return {
-                #         "type": "movie_info",
-                #         "resdataponse": data
-                #     }
-                # elif return_type == ResponseTypeEnum.TEXT_RESPONSE:
-                #     # Handle app support assistant responses
-                #     return {
-                #         "type": "text_response",
-                #         "data": data
-                #     }
-                # else:
-                #     # Default case for other JSON responses
-                #     return {
-                #         "type": return_type,
-                #         "data": data
-                #     }
+                # Handle different response types
+                if return_type == ResponseTypeEnum.MOVIE_JSON:
+                    if 'movies' in data and data['movies']:
+                        movies = data['movies']
+                        # convert keys name to a readable format
+                        data['movies'] = update_movie_response(movies)
+                        # filter the movies with tmdb
+                        data['movies'] = filter_movies_with_tmdb(data['movies'])
+                    return {
+                        "output_type": "movie_json",
+                        "data": data  # This should include 'movies' field
+                    }
+                elif return_type == ResponseTypeEnum.LIST:
+                    return {
+                        "output_type": "list",
+                        "data": data.get("items", [])
+                    }
+                elif return_type == ResponseTypeEnum.MOVIE_INFO:
+                    if 'related_movies' in data and data['related_movies']:
+                        movies = data['related_movies']
+                        # convert keys name to a readable format
+                        data['related_movies'] = update_movie_response(movies)
+                        # filter the movies with tmdb
+                        data['related_movies'] = filter_movies_with_tmdb(data['related_movies'])
+                    return {
+                        "type": "movie_info",
+                        "data": data
+                    }
+                elif return_type == ResponseTypeEnum.TEXT_RESPONSE:
+                    # Handle app support assistant responses
+                    return {
+                        "output_type": "text",
+                        "data": {**data}
+                    }
+                else:
+                    # Default case for other JSON responses
+                    return {
+                        "output_type": return_type,
+                        "data": data
+                    }
             
             # If we have JSON but no type field, check for specific structures
             if 'suggestions' in json_response:
                 # Likely a movie suggestion response
                 return {
                     "output_type": "movie_json",
-                    "response": {
+                    "data": {
                         "movies": json_response.get("suggestions", []),
                         "explanation": json_response.get("explanation", "")
                     }
@@ -383,7 +423,7 @@ IMPORTANT: Avoid suggesting movies that have been previously recommended.
         # Default case: return as text
         return {
             "output_type": "text",
-            "response": {"content": response_text}
+            "data": {"content": response_text}
         }
     
     def clear_thread(self):

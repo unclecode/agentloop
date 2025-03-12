@@ -1373,6 +1373,7 @@ function addJSONMessage(responseData) {
                 renderedView.appendChild(createMovieInfoUI(responseData.data));
                 break;
             case 'text_response':
+            case 'text':
                 renderedView.appendChild(createTextResponseUI(responseData.data));
                 break;
             default:

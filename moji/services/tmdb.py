@@ -5,9 +5,6 @@ sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
 from concurrent.futures import ThreadPoolExecutor
 from concurrent.futures import as_completed
-# from tools.search_image import get_movie_poster
-# from libs.app_redis import AppRedisDB
-from fuzzywuzzy import fuzz
 import urllib.parse
 
 import requests
@@ -15,7 +12,6 @@ import json, pprint
 from redis import Redis
 
 TMDB_ACCESS_TOKEN = os.environ.get('TMDB_ACCESS_TOKEN', '')
-FUZZ_VAL = 70
 
 def clean_search_query(query):
     return urllib.parse.quote(query)
@@ -95,103 +91,6 @@ class TMDBService:
             page += 1
 
         return results[:max_results]
-
-    def check_movies(self, movies, genre_dict=None, redis_db=None):
-        """
-        Check if the movies or TV shows are in the database.
-
-        Args:
-            movies (list): List of movies or TV shows with their details.
-            genre_dict (dict): Dictionary containing genre mappings.
-            redis_db (Redis): Redis database instance for caching.
-
-        Returns:
-            list: List of matched movies or TV shows.
-        """
-        redis_db = redis_db or self.redis_db
-        genre_dict = genre_dict or self.genre_dict
-        # Define mappings for different types
-        type_mapping = {
-            'movie': {'search_key': 'title', 'date_key': 'release_date', 'tmdb_key': 'movie'},
-            'tv': {'search_key': 'name', 'date_key': 'first_air_date', 'tmdb_key': 'tv'},
-            'tv-series': {'search_key': 'name', 'date_key': 'first_air_date', 'tmdb_key': 'tv'},
-            'tv-show': {'search_key': 'name', 'date_key': 'first_air_date', 'tmdb_key': 'tv'},
-        }
-        
-        # Search the TMDB API with ThreadPoolExecutor
-        with ThreadPoolExecutor() as executor:
-            futures = []
-            for movie in movies:
-                future = executor.submit(self.search_tmdb, movie['name'], genre_dict, year=movie['year'], redis_db=redis_db)
-                futures.append(future)
-
-            results = [future.result() for future in futures]
-
-        new_results = []
-        for ix, m in enumerate(results):
-            movie_type = movies[ix]['type']
-            query_type = m.get('query_type', 'movie')
-
-            # Determine type-specific keys
-            # mapping = type_mapping.get(movie_type, type_mapping['movie'])
-            mapping = type_mapping.get(query_type, type_mapping['movie'])
-            tmdb_key = mapping['tmdb_key']
-            search_key = mapping['search_key']
-            date_key = mapping['date_key']
-            
-            item_type = 'movie' if tmdb_key == 'movie' else 'tv-series'
-            
-            search_name = movies[ix]['name'].lower()
-            search_year = str(movies[ix]['year'])
-
-            selected_items = [
-                item for item in m.get(tmdb_key, [])
-                if fuzz.partial_ratio(item[search_key].lower(), search_name) > FUZZ_VAL and item[date_key].split('-')[0] == search_year
-            ]
-            
-            if selected_items:
-                selected_item = selected_items[0]
-                if selected_item['poster_path']:
-                    new_result = {
-                        "id": selected_item['id'],
-                        "name": selected_item[search_key],  # Use the correct key for name/title
-                        "overview": selected_item['overview'],
-                        "poster_path": selected_item['poster_path'],
-                        "backdrop_path": selected_item['backdrop_path'],
-                        "release_date": selected_item[date_key],
-                        "vote_average": selected_item['vote_average'],
-                        "vote_count": selected_item['vote_count'],
-                        "popularity": selected_item['popularity'],
-                        "video": selected_item.get('video', False),
-                        "year": movies[ix]['year'],
-                        "type": item_type
-                    }
-                # # Poster handling
-                # try:
-                #     update_redis = False
-                #     if not selected_item['poster_path']:
-                #         image_url = None
-                #         redis_key = 'original_title' if movie_type == 'movie' else 'original_name'
-                #         if redis_db:
-                #             image_url = AppRedisDB(redis_db).get_movie_poster(selected_item[redis_key])
-                #         if not image_url:
-                #             image_url = get_movie_poster(selected_item[redis_key])
-                #             update_redis = True
-                #         new_result['poster_path'] = image_url
-                #         if redis_db and update_redis:
-                #             AppRedisDB(redis_db).set_movie_poster(selected_item[redis_key], image_url)
-                # except Exception as e:
-                #     print(f"Error getting poster: {str(e)}")
-                
-                new_results.append(new_result)
-
-        # Sort the results by popularity
-        try:
-            new_results = sorted(new_results, key=lambda x: x['popularity'], reverse=True)
-        except Exception as e:
-            print(f"Error sorting results: {str(e)}")
-        
-        return new_results
 
     def get_latest_movies(self, max_results=20):
         """

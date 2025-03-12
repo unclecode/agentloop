@@ -95,7 +95,9 @@ def get_assistant(user_id: str, user_token: str, user_profile: dict = None, appl
     user_details = {
         "name": user_profile.get("full_name", "User"),
         "dob": user_profile.get("dob"),
-        "gender": user_profile.get("gender")
+        "gender": user_profile.get("gender", ""),
+        "age": user_profile.get("age", ""),
+        "language": user_profile.get("language", "en"),
     }
     
     # Add favorite_genre if available
