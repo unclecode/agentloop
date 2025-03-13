@@ -3,7 +3,9 @@ from sqlite3 import Connection
 import datetime
 import re
 import threading
-from typing import List, Tuple, Dict, Optional
+import numpy as np
+from queue import Queue, Empty
+from typing import List, Tuple, Dict, Optional, Any, Union
 
 
 class DatabaseAdapter:
@@ -48,6 +50,8 @@ class DatabaseAdapter:
                     tokens INTEGER,
                     timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
                     metadata TEXT,
+                    embedding BLOB,
+                    embedding_model TEXT,
                     FOREIGN KEY(session_id) REFERENCES sessions(session_id)
                 )''')
             
@@ -122,15 +126,15 @@ class DatabaseAdapter:
         return None, None
     
     def add_message(self, session_id: str, chunk_index: int, role: str, 
-                   content: str, tokens: int, metadata: Optional[Dict] = None):
-        """Add a message to the database and FTS index."""
+                   content: str, tokens: int, metadata: Optional[Dict] = None) -> int:
+        """Add a message to the database and FTS index. Returns the message ID."""
         conn = self.get_connection()
         with conn:
             # Safely serialize metadata
             metadata_str = str(metadata) if metadata else None
             
             # Insert into messages table
-            conn.execute(
+            cursor = conn.execute(
                 """
                 INSERT INTO messages 
                 (session_id, chunk_index, role, content, tokens, metadata)
@@ -139,15 +143,20 @@ class DatabaseAdapter:
                 (session_id, chunk_index, role, content, tokens, metadata_str)
             )
             
+            # Get the message ID
+            message_id = cursor.lastrowid
+            
             # Insert into FTS index
             conn.execute(
                 """
                 INSERT INTO messages_fts 
                 (rowid, content, session_id, metadata, role)
-                VALUES (last_insert_rowid(), ?, ?, ?, ?)
+                VALUES (?, ?, ?, ?, ?)
                 """,
-                (content, session_id, metadata_str or '', role)
+                (message_id, content, session_id, metadata_str or '', role)
             )
+            
+            return message_id
     
     def escape_fts_query(self, query: str) -> str:
         """
@@ -402,3 +411,131 @@ class DatabaseAdapter:
         except Exception as e:
             print(f"Error clearing all memory: {str(e)}")
             return False
+            
+    def search_vectors(self, query_embedding: bytes, dimensions: int, session_id: str = None, limit: int = 100) -> List[Dict]:
+        """
+        Approximate cosine similarity search using SQLite.
+        
+        Args:
+            query_embedding: The query embedding as bytes
+            dimensions: The number of dimensions in the embedding
+            session_id: Optional session ID to filter by
+            limit: Maximum number of results to return
+            
+        Returns:
+            List of message dictionaries with similarity scores
+        """
+        conn = self.get_connection()
+        
+        # Change query based on whether session_id is provided
+        if session_id:
+            cursor = conn.execute('''
+                SELECT 
+                    m.message_id,
+                    m.content, 
+                    m.role, 
+                    m.tokens, 
+                    m.metadata, 
+                    m.timestamp,
+                    m.embedding,
+                    m.session_id
+                FROM messages m
+                WHERE m.embedding IS NOT NULL AND m.session_id = ?
+                LIMIT ?
+            ''', (session_id, limit))
+        else:
+            cursor = conn.execute('''
+                SELECT 
+                    m.message_id,
+                    m.content, 
+                    m.role, 
+                    m.tokens, 
+                    m.metadata, 
+                    m.timestamp,
+                    m.embedding,
+                    m.session_id
+                FROM messages m
+                WHERE m.embedding IS NOT NULL
+                LIMIT ?
+            ''', (limit,))
+        
+        # Convert to message dictionaries
+        results = []
+        for row in cursor:
+            message_id, content, role, tokens, metadata_str, timestamp, embedding_bytes, session_id = row
+            
+            # Parse metadata
+            metadata = None
+            if metadata_str:
+                try:
+                    metadata = eval(metadata_str)
+                except:
+                    metadata = metadata_str
+            
+            # For vector similarity, we need to convert binary to numpy array
+            similarity = 0.0
+            if embedding_bytes:
+                try:
+                    embedding = np.frombuffer(embedding_bytes, dtype=np.float32)
+                    # We'll calculate similarity in Python since SQLite doesn't have vector operations
+                    query_vector = np.frombuffer(query_embedding, dtype=np.float32)
+                    
+                    # Calculate norms
+                    norm_a = np.linalg.norm(embedding)
+                    norm_b = np.linalg.norm(query_vector)
+                    
+                    # Avoid division by zero
+                    if norm_a > 0 and norm_b > 0:
+                        # Simple cosine similarity approximation
+                        similarity = float(np.dot(embedding, query_vector) / (norm_a * norm_b))
+                except Exception as e:
+                    print(f"Error calculating similarity: {str(e)}")
+                
+            results.append({
+                'message_id': message_id,
+                'content': content,
+                'role': role,
+                'tokens': tokens,
+                'metadata': metadata,
+                'timestamp': timestamp,
+                'similarity': similarity
+            })
+            
+        # Sort by similarity
+        results.sort(key=lambda x: x['similarity'], reverse=True)
+        return results
+
+    def get_bm25_scores(self, query: str, message_ids: List[int]) -> Dict[int, float]:
+        """
+        Get BM25 scores for specific message IDs.
+        
+        Args:
+            query: The search query
+            message_ids: List of message IDs to score
+            
+        Returns:
+            Dictionary of message ID to BM25 score
+        """
+        if not message_ids:
+            return {}
+            
+        conn = self.get_connection()
+        # Safely escape query
+        safe_query = self.escape_fts_query(query)
+        
+        # Create placeholders for SQL IN clause
+        placeholders = ','.join(['?'] * len(message_ids))
+        
+        # Query for BM25 scores
+        cursor = conn.execute(f'''
+            SELECT rowid, bm25(messages_fts) AS score
+            FROM messages_fts
+            WHERE rowid IN ({placeholders})
+            AND messages_fts MATCH ?
+        ''', message_ids + [safe_query])
+        
+        # Return as dictionary of message ID to score
+        return {
+            row[0]: row[1]
+            for row in cursor
+        }

@@ -41,7 +41,8 @@ class AgentLoop:
         tool_schemas: Optional[List[Dict[str, Any]]] = None,
         remember_tool_calls: bool = False,
         synthesizer_model_id: Optional[str] = None,
-        memory_path: Optional[str] = None
+        memory_path: Optional[str] = None,
+        max_tokens: int = 2 ** 16
     ):
         """
         Initialize a new AgentLoop instance.
@@ -69,11 +70,12 @@ class AgentLoop:
         self.guardrail = guardrail
         self.tool_schemas = tool_schemas or []
         self.remember_tool_calls = remember_tool_calls
-        self.synthesizer_model_id = synthesizer_model_id or model_id
+        self.synthesizer_model_id = synthesizer_model_id or model_id\
         
         # Memory system initialization
         self.memory_path = memory_path or _get_default_memory_path()
         self._memory = None
+        self.max_tokens = max_tokens
         
         # Session state
         self.session_id = None
@@ -249,7 +251,7 @@ class AgentLoop:
         if self._memory and isinstance(message, str):
             # Get context directly from memory with updated structure
             query = message
-            max_tokens = 2000  # Default limit
+            max_tokens = self.max_tokens 
             memory_contexts = self.build_memory_context(query, max_tokens)
             
             # Process short-term memory
