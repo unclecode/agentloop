@@ -15,6 +15,7 @@ from glob import glob
 import agentloop
 
 from moji.libs.response_model import Talk2MeLLMResponse
+from moji.libs.helpers import (update_movie_response, filter_movies_with_tmdb)
 
 # Response type definitions
 class ResponseTypeEnum:
@@ -384,34 +385,46 @@ IMPORTANT: Avoid suggesting movies that have been previously recommended.
 
                 return response
                 
-                # # Handle different response types
-                # if return_type == ResponseTypeEnum.MOVIE_JSON:
-                #     return {
-                #         "type": "movie_json",
-                #         "data": data  # This should include 'movies' field
-                #     }
-                # elif return_type == ResponseTypeEnum.LIST:
-                #     return {
-                #         "type": "list",
-                #         "data": data.get("items", [])
-                #     }
-                # elif return_type == ResponseTypeEnum.MOVIE_INFO:
-                #     return {
-                #         "type": "movie_info",
-                #         "resdataponse": data
-                #     }
-                # elif return_type == ResponseTypeEnum.TEXT_RESPONSE:
-                #     # Handle app support assistant responses
-                #     return {
-                #         "type": "text_response",
-                #         "data": data
-                #     }
-                # else:
-                #     # Default case for other JSON responses
-                #     return {
-                #         "type": return_type,
-                #         "data": data
-                #     }
+                # Handle different response types
+                if return_type == ResponseTypeEnum.MOVIE_JSON:
+                    if 'movies' in data and data['movies']:
+                        movies = data['movies']
+                        # convert keys name to a readable format
+                        data['movies'] = update_movie_response(movies)
+                        # filter the movies with tmdb
+                        data['movies'] = filter_movies_with_tmdb(data['movies'])
+                    return {
+                        "output_type": "movie_json",
+                        "data": data  # This should include 'movies' field
+                    }
+                elif return_type == ResponseTypeEnum.LIST:
+                    return {
+                        "output_type": "list",
+                        "data": data.get("items", [])
+                    }
+                elif return_type == ResponseTypeEnum.MOVIE_INFO:
+                    if 'related_movies' in data and data['related_movies']:
+                        movies = data['related_movies']
+                        # convert keys name to a readable format
+                        data['related_movies'] = update_movie_response(movies)
+                        # filter the movies with tmdb
+                        data['related_movies'] = filter_movies_with_tmdb(data['related_movies'])
+                    return {
+                        "type": "movie_info",
+                        "data": data
+                    }
+                elif return_type == ResponseTypeEnum.TEXT_RESPONSE:
+                    # Handle app support assistant responses
+                    return {
+                        "output_type": "text_response",
+                        "data": {**data}
+                    }
+                else:
+                    # Default case for other JSON responses
+                    return {
+                        "output_type": return_type,
+                        "data": data
+                    }
             
             # If we have JSON but no type field, check for specific structures
             if 'suggestions' in json_response:
