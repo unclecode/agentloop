@@ -23,7 +23,7 @@ def update_movie_response(movies):
     return movies
 
 
-def filter_movies_with_tmdb(movies: List) -> Dict:
+def filter_movies_with_tmdb(movies: List) -> List:
     """
     Process movie data from an API response, checking against the TMDB database.
 

@@ -9,6 +9,7 @@ import sys
 # Add parent directories to path to avoid import issues
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from services.mojitoApis import MojitoAPIs
+from libs.helpers import filter_movies_with_tmdb
 
 def create_favorite_list(
     list_name: str,
@@ -131,10 +132,11 @@ def add_to_favorite_list(
         api_client = MojitoAPIs(user_id=user_id, token=user_token)
         
         # Check if we're adding to the Big Five list
+        movies = filter_movies_with_tmdb(movies)
         if list_id.upper() == "BIG_FIVE":
             response = api_client.add_to_big_five_list(movies=movies)
         else:
-            # Regular list
+            # Regular list            
             response = api_client.add_movies_to_list(list_id=list_id, movies=movies)
         
         # Format response for agentloop
@@ -494,6 +496,7 @@ def add_to_big_five_list(
         api_client = MojitoAPIs(user_id=user_id, token=user_token)
         
         # Call API to add movies to Big Five list
+        movies = filter_movies_with_tmdb(movies)
         response = api_client.add_to_big_five_list(movies=movies)
         
         # Format response for agentloop
@@ -568,7 +571,7 @@ ADD_TO_LIST_SCHEMA = {
                             "poster_path": {"type": "string", "description": "Path to movie poster"},
                             "backdrop_path": {"type": "string", "description": "Path to movie backdrop"}
                         },
-                        "required": ["id", "name"]
+                        "required": ["id", "name", "year", "type"]
                     },
                     "description": "List of movie objects to add to the list"
                 }
