@@ -8,6 +8,304 @@
     <link rel="stylesheet" href="/assets/app.css">
     <!-- Marked.js for Markdown rendering -->
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <style>
+        /* Dark theme */
+        :root {
+            --bg-color: #1e1e1e;
+            --text-color: #f0f0f0;
+            --border-color: #444;
+            --accent-color: #4a9cf6;
+            --hover-color: rgba(255, 255, 255, 0.1);
+            --header-bg: #252525;
+            --menu-bg: #2a2a2a;
+            --switch-off-bg: #555;
+            --button-color: #ddd;
+            --message-bg-user: #2d4a64;
+            --message-bg-assistant: #2a2a2a;
+            --welcome-bg: #232323;
+            --input-bg: #2a2a2a;
+            --input-border: #444;
+            --input-text: #f0f0f0;
+            --modal-bg: #2a2a2a;
+        }
+        
+        body {
+            background-color: var(--bg-color);
+            color: var(--text-color);
+        }
+        
+        .chat-header {
+            background-color: var(--header-bg);
+            border-bottom: 1px solid var(--border-color);
+        }
+        
+        .user-message .message {
+            background-color: var(--message-bg-user);
+            color: var(--text-color);
+        }
+        
+        .assistant-message .message {
+            background-color: var(--message-bg-assistant);
+            color: var(--text-color);
+        }
+        
+        .welcome-message {
+            background-color: var(--welcome-bg);
+            color: var(--text-color);
+            border: 1px solid var(--border-color);
+        }
+        
+        .suggestion-btn {
+            background-color: var(--header-bg);
+            color: var(--text-color);
+            border: 1px solid var(--border-color);
+        }
+        
+        .suggestion-btn:hover {
+            background-color: var(--hover-color);
+        }
+        
+        .chat-input-container {
+            /* background-color: var(--header-bg);
+            border-top: 1px solid var(--border-color); */
+        }
+        
+        #message-input {
+            background-color: var(--input-bg);
+            color: var(--input-text);
+        }
+        
+        #send-button {
+            background-color: var(--accent-color);
+            color: white;
+        }
+        
+        .modal-content {
+            background-color: var(--modal-bg);
+            color: var(--text-color);
+            border: 1px solid var(--border-color);
+        }
+        
+        textarea {
+            background-color: var(--input-bg);
+            color: var(--input-text);
+            border: 1px solid var(--input-border);
+        }
+        
+        .modal-header {
+            border-bottom: 1px solid var(--border-color);
+        }
+        
+        .modal button {
+            background-color: var(--accent-color);
+            color: white;
+            border: none;
+        }
+        
+        .modal button:hover {
+            background-color: #3a8ce5;
+        }
+        
+        /* Play button styling */
+        .play-button {
+            border: none;
+            background: transparent;
+            color: var(--button-color);
+            cursor: pointer;
+            padding: 5px;
+            margin-left: 5px;
+            border-radius: 50%;
+            width: 30px;
+            height: 30px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            outline: none;
+        }
+        
+        .play-button:hover {
+            background: var(--hover-color);
+        }
+        
+        .assistant-message .message {
+            position: relative;
+        }
+        
+        .message-controls {
+            position: absolute;
+            top: 5px;
+            right: 5px;
+            display: flex;
+            gap: 5px;
+        }
+        
+        /* Settings dropdown styling */
+        .settings-dropdown {
+            position: relative;
+            margin-right: 5px;
+        }
+        
+        .settings-toggle {
+            background: transparent;
+            border: none;
+            color: var(--button-color);
+            cursor: pointer;
+            font-size: 20px;
+            padding: 5px;
+            width: 36px;
+            height: 36px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 5px;
+        }
+        
+        .settings-toggle:hover {
+            background: var(--hover-color);
+        }
+        
+        .settings-menu {
+            display: none;
+            position: absolute;
+            right: 0;
+            top: 100%;
+            background: var(--menu-bg);
+            box-shadow: 0 3px 15px rgba(0,0,0,0.4);
+            border-radius: 8px;
+            padding: 15px;
+            z-index: 100;
+            width: 250px;
+            margin-top: 10px;
+        }
+        
+        .settings-menu.active {
+            display: block;
+        }
+        
+        /* Menu header */
+        .settings-menu-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+            padding-bottom: 10px;
+            border-bottom: 1px solid var(--border-color);
+            font-weight: bold;
+            color: var(--text-color);
+        }
+        
+        .settings-menu-close {
+            background: transparent;
+            border: none;
+            font-size: 20px;
+            cursor: pointer;
+            color: var(--button-color);
+        }
+        
+        /* Toggle container styles */
+        .toggle-container {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            width: 100%;
+            margin: 15px 0;
+            padding-bottom: 15px;
+            border-bottom: 1px solid var(--border-color);
+        }
+        
+        .toggle-container:last-child {
+            border-bottom: none;
+            padding-bottom: 0;
+        }
+        
+        .toggle-label {
+            display: inline-block;
+            font-weight: 500;
+            color: var(--text-color);
+        }
+        
+        /* Compact header actions */
+        .header-actions {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .header-actions button {
+            margin-left: 0;
+            width: 36px;
+            height: 36px;
+            padding: 0;
+            background: transparent;
+            border: none;
+            color: var(--button-color);
+            border-radius: 5px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+        }
+        
+        .header-actions button:hover {
+            background: var(--hover-color);
+        }
+        
+        /* Switch styling for dark theme */
+        .switch {
+            position: relative;
+            display: inline-block;
+            width: 44px;
+            height: 24px;
+        }
+        
+        .switch input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+        
+        .slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: var(--switch-off-bg);
+            transition: .4s;
+        }
+        
+        .slider:before {
+            position: absolute;
+            content: "";
+            height: 18px;
+            width: 18px;
+            left: 3px;
+            bottom: 3px;
+            background-color: white;
+            transition: .4s;
+        }
+        
+        input:checked + .slider {
+            background-color: var(--accent-color);
+        }
+        
+        input:focus + .slider {
+            box-shadow: 0 0 1px var(--accent-color);
+        }
+        
+        input:checked + .slider:before {
+            transform: translateX(20px);
+        }
+        
+        .slider.round {
+            border-radius: 24px;
+        }
+        
+        .slider.round:before {
+            border-radius: 50%;
+        }
+    </style>
 </head>
 <body>
     <div class="app-container">
@@ -45,13 +343,41 @@
                     <h2>Moji Assistant</h2>
                 </div>
                 <div class="header-actions">
-                    <div class="toggle-container" title="Toggle streaming mode">
-                        <label class="switch">
-                            <input type="checkbox" id="stream-toggle" checked>
-                            <span class="slider round"></span>
-                        </label>
-                        <span class="toggle-label">Stream</span>
+                    <!-- Settings dropdown -->
+                    <div class="settings-dropdown">
+                        <button class="settings-toggle" id="settings-toggle" title="Settings">
+                            <i class="fas fa-cog"></i>
+                        </button>
+                        <div class="settings-menu" id="settings-menu">
+                            <div class="settings-menu-header">
+                                <span>Settings</span>
+                                <button class="settings-menu-close" id="settings-close-btn">&times;</button>
+                            </div>
+                            <div class="toggle-container" title="Toggle streaming mode">
+                                <span class="toggle-label">Stream Responses</span>
+                                <label class="switch">
+                                    <input type="checkbox" id="stream-toggle" checked>
+                                    <span class="slider round"></span>
+                                </label>
+                            </div>
+                            <div class="toggle-container" title="Toggle voice output">
+                                <span class="toggle-label">Voice Output</span>
+                                <label class="switch">
+                                    <input type="checkbox" id="audio-toggle">
+                                    <span class="slider round"></span>
+                                </label>
+                            </div>
+                            <div id="autoplay-container" class="toggle-container" title="Toggle auto-playing voice" style="display: none;">
+                                <span class="toggle-label">Auto-play Voice</span>
+                                <label class="switch">
+                                    <input type="checkbox" id="autoplay-toggle" checked>
+                                    <span class="slider round"></span>
+                                </label>
+                            </div>
+                        </div>
                     </div>
+                    
+                    <!-- Action buttons -->
                     <button id="clear-memory-btn" title="Clear conversation memory">
                         <i class="fas fa-trash"></i>
                     </button>

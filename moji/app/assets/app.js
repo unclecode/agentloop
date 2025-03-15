@@ -34,7 +34,10 @@ const state = {
     currentResponse: '',
     typingTimeout: null,
     eventSource: null,
-    streamingMode: true
+    streamingMode: true,
+    audioEnabled: false,
+    autoplayEnabled: true,
+    currentAudio: null
 };
 
 // Event Listeners
@@ -51,7 +54,43 @@ cancelBugBtn.addEventListener('click', () => toggleModal(bugModal, false));
 closeClearModalBtn.addEventListener('click', () => toggleModal(clearMemoryModal, false));
 confirmClearBtn.addEventListener('click', handleClearMemory);
 cancelClearBtn.addEventListener('click', () => toggleModal(clearMemoryModal, false));
+
+// Toggle listeners
 streamToggle.addEventListener('change', toggleStreamingMode);
+document.getElementById('audio-toggle').addEventListener('change', toggleAudioMode);
+document.getElementById('autoplay-toggle').addEventListener('change', toggleAutoplay);
+
+// Settings menu toggle
+document.getElementById('settings-toggle').addEventListener('click', (e) => {
+    e.stopPropagation(); // Prevent the click from being captured by the document listener
+    document.getElementById('settings-menu').classList.toggle('active');
+});
+
+// Settings close button
+document.getElementById('settings-close-btn').addEventListener('click', () => {
+    document.getElementById('settings-menu').classList.remove('active');
+});
+
+// Close settings menu when clicking outside
+document.addEventListener('click', (e) => {
+    const settingsMenu = document.getElementById('settings-menu');
+    const settingsToggle = document.getElementById('settings-toggle');
+    
+    if (settingsMenu.classList.contains('active') && 
+        !settingsMenu.contains(e.target) && 
+        !settingsToggle.contains(e.target)) {
+        settingsMenu.classList.remove('active');
+    }
+});
+
+// Add escape key listener to stop audio
+document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') {
+        stopAudio();
+        // Also close settings menu if open
+        document.getElementById('settings-menu').classList.remove('active');
+    }
+});
 
 // Suggestion buttons
 document.querySelectorAll('.suggestion-btn').forEach(btn => {
@@ -85,6 +124,29 @@ function init() {
     } else {
         // Default to the toggle's initial state
         state.streamingMode = streamToggle.checked;
+    }
+    
+    // Initialize audio mode from localStorage
+    const savedAudioMode = localStorage.getItem('mojiAudioMode');
+    if (savedAudioMode !== null) {
+        state.audioEnabled = savedAudioMode === 'true';
+        document.getElementById('audio-toggle').checked = state.audioEnabled;
+        
+        // Show/hide autoplay toggle based on audio enabled state
+        const autoplayContainer = document.getElementById('autoplay-container');
+        
+        if (state.audioEnabled) {
+            autoplayContainer.style.display = 'flex';
+        } else {
+            autoplayContainer.style.display = 'none';
+        }
+    }
+    
+    // Initialize autoplay mode from localStorage
+    const savedAutoplayMode = localStorage.getItem('mojiAutoplayMode');
+    if (savedAutoplayMode !== null) {
+        state.autoplayEnabled = savedAutoplayMode === 'true';
+        document.getElementById('autoplay-toggle').checked = state.autoplayEnabled;
     }
 
     if (savedUserId && savedUserToken) {
@@ -259,6 +321,125 @@ function toggleStreamingMode(e) {
     console.log(`Streaming mode ${state.streamingMode ? 'enabled' : 'disabled'}`);
 }
 
+// Audio functions
+function toggleAudioMode(e) {
+    state.audioEnabled = e.target.checked;
+    // Save audio mode preference to localStorage
+    localStorage.setItem('mojiAudioMode', state.audioEnabled);
+    console.log(`Audio mode ${state.audioEnabled ? 'enabled' : 'disabled'}`);
+    
+    // Stop any playing audio when disabled
+    if (!state.audioEnabled && state.currentAudio) {
+        stopAudio();
+    }
+    
+    // Show/hide autoplay toggle based on audio enabled state
+    const autoplayContainer = document.getElementById('autoplay-container');
+    
+    if (state.audioEnabled) {
+        autoplayContainer.style.display = 'flex';
+    } else {
+        autoplayContainer.style.display = 'none';
+    }
+}
+
+function toggleAutoplay(e) {
+    state.autoplayEnabled = e.target.checked;
+    // Save autoplay preference to localStorage
+    localStorage.setItem('mojiAutoplayMode', state.autoplayEnabled);
+    console.log(`Autoplay mode ${state.autoplayEnabled ? 'enabled' : 'disabled'}`);
+}
+
+function playTextAsSpeech(text, messageId) {
+    if (!state.audioEnabled) return;
+    
+    // Stop any currently playing audio
+    stopAudio();
+    
+    // Find play button and update UI
+    const playButton = document.querySelector(`#message-${messageId} .play-button`);
+    if (playButton) {
+        playButton.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
+    }
+    
+    // Create audio element
+    state.currentAudio = new Audio();
+    state.currentAudio.messageId = messageId;
+    
+    // Set up event listeners
+    state.currentAudio.onended = function() {
+        if (playButton) {
+            playButton.innerHTML = '<i class="fas fa-play"></i>';
+        }
+        state.currentAudio = null;
+    };
+    
+    state.currentAudio.onerror = function() {
+        console.error('Error playing audio');
+        if (playButton) {
+            playButton.innerHTML = '<i class="fas fa-play"></i>';
+        }
+        state.currentAudio = null;
+    };
+    
+    // Clean the text (remove markdown and HTML)
+    const cleanedText = text.replace(/\*\*|\*|__|_|\[.*?\]\(.*?\)|<.*?>|\#|\`\`\`.*?\`\`\`|\`.*?\`/g, '');
+    
+    // Request TTS from server
+    fetch('/api/tts', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ text: cleanedText })
+    })
+    .then(response => {
+        if (!response.ok) {
+            throw new Error('Network response was not ok');
+        }
+        return response.blob();
+    })
+    .then(blob => {
+        const url = URL.createObjectURL(blob);
+        state.currentAudio.src = url;
+        state.currentAudio.play()
+            .then(() => {
+                if (playButton) {
+                    playButton.innerHTML = '<i class="fas fa-pause"></i>';
+                }
+            })
+            .catch(error => {
+                console.error('Error playing audio:', error);
+                if (playButton) {
+                    playButton.innerHTML = '<i class="fas fa-play"></i>';
+                }
+            });
+    })
+    .catch(error => {
+        console.error('Error fetching audio:', error);
+        if (playButton) {
+            playButton.innerHTML = '<i class="fas fa-play"></i>';
+        }
+        state.currentAudio = null;
+    });
+}
+
+function stopAudio() {
+    if (state.currentAudio) {
+        state.currentAudio.pause();
+        
+        // Reset play button for the message
+        if (state.currentAudio.messageId) {
+            const playButton = document.querySelector(`#message-${state.currentAudio.messageId} .play-button`);
+            if (playButton) {
+                playButton.innerHTML = '<i class="fas fa-play"></i>';
+            }
+        }
+        
+        state.currentAudio = null;
+    }
+}
+
 async function handleLogin(e) {
     e.preventDefault();
 
@@ -335,6 +516,9 @@ async function handleSendMessage(e) {
     const message = messageInput.value.trim();
     if (!message || state.isProcessing) return;
 
+    // Stop any playing audio
+    stopAudio();
+
     state.isProcessing = true;
 
     // Add user message to chat
@@ -407,7 +591,36 @@ async function processNonStreamingMessage(message, typingIndicator) {
         
         if (typeof responseData === 'object') {
             // Use our shared function to create JSON message with toggle
-            addJSONMessage(responseData);
+            const messageContainer = addJSONMessage(responseData);
+            
+            // Extract text content for audio if needed
+            if (state.audioEnabled) {
+                let textToSpeak = '';
+                
+                // Extract appropriate content based on response type
+                if (responseData.type === 'text_response' && responseData.data && responseData.data.content) {
+                    textToSpeak = responseData.data.content;
+                } else if (responseData.type === 'movie_json' && responseData.data && responseData.data.explanation) {
+                    textToSpeak = responseData.data.explanation;
+                } else if (responseData.type === 'movie_info' && responseData.data && responseData.data.answer) {
+                    textToSpeak = responseData.data.answer;
+                } else if (responseData.content) {
+                    textToSpeak = responseData.content;
+                } else if (responseData.message) {
+                    textToSpeak = responseData.message;
+                } else {
+                    // Try to extract a reasonable text representation for other types
+                    textToSpeak = "I've found some information for you. Please check the details on screen.";
+                }
+                
+                // Get message ID from container
+                const messageId = messageContainer.id.replace('message-', '');
+                if (messageId && textToSpeak && state.autoplayEnabled) {
+                    setTimeout(() => {
+                        playTextAsSpeech(textToSpeak, messageId);
+                    }, 100);
+                }
+            }
         } else {
             // Regular text message
             addMessage(responseData, 'assistant');
@@ -784,6 +997,9 @@ function processStreamingMessage(message, typingIndicator) {
         // Reset current response
         state.currentResponse = '';
 
+        // Generate a unique message ID for this response
+        const messageId = Date.now();
+
         // Function to create message div only when we need it
         let assistantMessage = null;
         let assistantMessageContent = null;
@@ -799,6 +1015,7 @@ function processStreamingMessage(message, typingIndicator) {
                 // Create the assistant message
                 assistantMessage = document.createElement('div');
                 assistantMessage.className = 'message-container assistant-message';
+                assistantMessage.id = `message-${messageId}`;
 
                 const messageDiv = document.createElement('div');
                 messageDiv.className = 'message';
@@ -831,6 +1048,20 @@ function processStreamingMessage(message, typingIndicator) {
                 assistantMessageContent = document.createElement('div');
                 assistantMessageContent.className = 'message-content';
                 messageDiv.appendChild(assistantMessageContent);
+
+                // Add message controls with play button for assistant messages
+                const controlsDiv = document.createElement('div');
+                controlsDiv.className = 'message-controls';
+                
+                const playButton = document.createElement('button');
+                playButton.className = 'play-button';
+                playButton.innerHTML = '<i class="fas fa-play"></i>';
+                playButton.onclick = function() {
+                    playTextAsSpeech(state.currentResponse, messageId);
+                };
+                
+                controlsDiv.appendChild(playButton);
+                messageDiv.appendChild(controlsDiv);
 
                 assistantMessage.appendChild(messageDiv);
 
@@ -974,6 +1205,14 @@ function processStreamingMessage(message, typingIndicator) {
                         // We're done, close the connection
                         eventSource.close();
                         state.eventSource = null;
+                        
+                        // Play audio if enabled and autoplay is on (after a small delay to let the UI settle)
+                        if (state.audioEnabled && state.autoplayEnabled) {
+                            setTimeout(() => {
+                                playTextAsSpeech(state.currentResponse, messageId);
+                            }, 100);
+                        }
+                        
                         resolve();
                         break;
 
@@ -1292,8 +1531,10 @@ function createToolExecutionElement(content) {
 }
 
 function addMessage(content, role) {
+    const messageId = Date.now();
     const messageContainer = document.createElement('div');
     messageContainer.className = `message-container ${role}-message`;
+    messageContainer.id = `message-${messageId}`;
 
     const messageDiv = document.createElement('div');
     messageDiv.className = 'message';
@@ -1308,6 +1549,27 @@ function addMessage(content, role) {
         // For assistant messages, parse markdown
         contentDiv.innerHTML = marked.parse(content);
         messageDiv.appendChild(contentDiv);
+        
+        // Add message controls with play button for assistant messages
+        const controlsDiv = document.createElement('div');
+        controlsDiv.className = 'message-controls';
+        
+        const playButton = document.createElement('button');
+        playButton.className = 'play-button';
+        playButton.innerHTML = '<i class="fas fa-play"></i>';
+        playButton.onclick = function() {
+            playTextAsSpeech(content, messageId);
+        };
+        
+        controlsDiv.appendChild(playButton);
+        messageDiv.appendChild(controlsDiv);
+        
+        // Auto-play if audio is enabled
+        if (state.audioEnabled) {
+            setTimeout(() => {
+                playTextAsSpeech(content, messageId);
+            }, 100);
+        }
     }
 
     messageContainer.appendChild(messageDiv);
@@ -1318,8 +1580,10 @@ function addMessage(content, role) {
 }
 
 function addJSONMessage(responseData) {
+    const messageId = Date.now();
     const messageContainer = document.createElement('div');
     messageContainer.className = 'message-container assistant-message';
+    messageContainer.id = `message-${messageId}`;
     
     const messageDiv = document.createElement('div');
     messageDiv.className = 'message';
@@ -1425,6 +1689,37 @@ function addJSONMessage(responseData) {
             ? '<i class="fas fa-exchange-alt"></i> Show Rendered' 
             : '<i class="fas fa-exchange-alt"></i> Show JSON';
     });
+    
+    // Add message controls with play button
+    const controlsDiv = document.createElement('div');
+    controlsDiv.className = 'message-controls';
+    
+    const playButton = document.createElement('button');
+    playButton.className = 'play-button';
+    playButton.innerHTML = '<i class="fas fa-play"></i>';
+    
+    // Define text to speak based on response type
+    let textToSpeak = '';
+    if (responseData.type === 'text_response' && responseData.data && responseData.data.content) {
+        textToSpeak = responseData.data.content;
+    } else if (responseData.type === 'movie_json' && responseData.data && responseData.data.explanation) {
+        textToSpeak = responseData.data.explanation;
+    } else if (responseData.type === 'movie_info' && responseData.data && responseData.data.answer) {
+        textToSpeak = responseData.data.answer;
+    } else if (responseData.content) {
+        textToSpeak = responseData.content;
+    } else if (responseData.message) {
+        textToSpeak = responseData.message;
+    } else {
+        textToSpeak = "I've found some information for you. Please check the details on screen.";
+    }
+    
+    playButton.onclick = function() {
+        playTextAsSpeech(textToSpeak, messageId);
+    };
+    
+    controlsDiv.appendChild(playButton);
+    messageDiv.appendChild(controlsDiv);
     
     messageDiv.appendChild(contentDiv);
     messageContainer.appendChild(messageDiv);

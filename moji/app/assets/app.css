@@ -393,6 +393,10 @@ main {
     justify-content: flex-start;
 }
 
+.assistant-message:last-of-type {
+    /* margin-bottom: 5rem; */
+}
+
 .message {
     max-width: 85%;
     padding: 0.9rem 1.1rem;

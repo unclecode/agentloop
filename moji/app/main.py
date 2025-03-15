@@ -3,6 +3,7 @@ import sys
 import json
 import time
 import traceback
+import requests
 from datetime import datetime
 from typing import Optional, Dict, Any
 
@@ -372,6 +373,64 @@ def report_bug():
             "error": str(e)
         }), 500
         
+@app.route('/api/tts', methods=['POST'])
+def text_to_speech():
+    """Generate text-to-speech audio using ElevenLabs API"""
+    data = request.json
+    text = data.get('text')
+    # voice_id = data.get('voice_id', 'EXAVITQu4vr4xnSDxMaL')  # Default voice ID (Eleven Labs "Rachel")
+    voice_id = data.get('voice_id', 'nzeAacJi50IvxcyDnMXa')  
+    
+    if not text:
+        return jsonify({"success": False, "error": "Text is required"}), 400
+    
+    # Get ElevenLabs API key from environment
+    elevenlabs_api_key = os.environ.get('ELEVENLABS_API_KEY')
+    
+    if not elevenlabs_api_key:
+        return jsonify({"success": False, "error": "ElevenLabs API key not configured"}), 500
+    
+    # Make streaming request to ElevenLabs API
+    headers = {
+        'Accept': 'audio/mpeg',
+        'xi-api-key': elevenlabs_api_key,
+        'Content-Type': 'application/json'
+    }
+    
+    data = {
+        'text': text,
+        'model_id': 'eleven_flash_v2_5',
+        'voice_settings': {
+            'speed':1.1,
+            'stability': 0.5,
+            'similarity_boost': 0.75
+        }
+    }
+    
+    # Stream response from ElevenLabs API back to client
+    def generate():
+        try:
+            url = f'https://api.elevenlabs.io/v1/text-to-speech/{voice_id}/stream'
+            response = requests.post(url, json=data, headers=headers, stream=True)
+            
+            if response.status_code != 200:
+                app.logger.error(f"ElevenLabs API error: {response.text}")
+                return Response(json.dumps({'error': 'Failed to generate speech'}), 
+                              mimetype='application/json', 
+                              status=response.status_code)
+            
+            for chunk in response.iter_content(chunk_size=1024):
+                if chunk:
+                    yield chunk
+                    
+        except Exception as e:
+            app.logger.error(f"Error generating speech: {str(e)}")
+            return Response(json.dumps({'error': str(e)}), 
+                          mimetype='application/json', 
+                          status=500)
+    
+    return Response(generate(), mimetype='audio/mpeg')
+
 @app.route('/api/movie-poster', methods=['GET'])
 def get_movie_poster():
     """Get a movie poster path from TMDB ID"""
