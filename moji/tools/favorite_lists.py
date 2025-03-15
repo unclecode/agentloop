@@ -456,10 +456,10 @@ def add_to_big_five_list(
     **context  # Catches user_id and user_token from context
 ) -> str:
     """
-    Add movies to the user's Big Five list (limited to 5 total movies).
+    Add movies or TV series to the user's Big Five list (limited to 5 total movies or TV series).
     
     Args:
-        movies: List of movie objects to add to the Big Five list
+        movies: List of movie or TV series objects to add to the Big Five list
         
     Context Args (passed by agentloop):
         user_id: User identifier
@@ -658,7 +658,7 @@ ADD_TO_BIG_FIVE_SCHEMA = {
     "type": "function",
     "function": {
         "name": "add_to_big_five_list",
-        "description": "Add movies to the user's Big Five list (limited to 5 total movies)",
+        "description": "Add movies or TV series to the user's Big Five list (limited to 5 total movies or TV series)",
         "parameters": {
             "type": "object",
             "properties": {
@@ -667,16 +667,16 @@ ADD_TO_BIG_FIVE_SCHEMA = {
                     "items": {
                         "type": "object",
                         "properties": {
-                            "id": {"type": ["string", "integer"], "description": "Movie ID"},
-                            "name": {"type": "string", "description": "Movie title/name"},
+                            "id": {"type": ["string", "integer"], "description": "Movie or TV series ID"},
+                            "name": {"type": "string", "description": "Movie or TV series title/name"},
                             "year": {"type": "string", "description": "Release year"},
                             "type": {"type": "string", "description": "Content type (movie, tv-series, etc.)"},
-                            "poster_path": {"type": "string", "description": "Path to movie poster"},
-                            "backdrop_path": {"type": "string", "description": "Path to movie backdrop"}
+                            "poster_path": {"type": "string", "description": "Path to movie or TV series poster"},
+                            "backdrop_path": {"type": "string", "description": "Path to movie or TV series backdrop"}
                         },
-                        "required": ["name"]
+                        "required": ["id", "name", "year", "type"]
                     },
-                    "description": "List of movie objects to add to the Big Five list (maximum 5 items)"
+                    "description": "List of movie or TV series objects to add to the Big Five list (maximum 5 items)"
                 }
             },
             "required": ["movies"]
