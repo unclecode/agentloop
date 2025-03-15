@@ -356,10 +356,19 @@ function playTextAsSpeech(text, messageId) {
     // Stop any currently playing audio
     stopAudio();
     
-    // Find play button and update UI
+    // Find message and play button and update UI
+    const message = document.querySelector(`#message-${messageId} .message`);
     const playButton = document.querySelector(`#message-${messageId} .play-button`);
+    
     if (playButton) {
         playButton.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
+        // Add playing class to the button
+        playButton.classList.add('playing');
+    }
+    
+    // Add playing class to message for animation
+    if (message) {
+        message.classList.add('playing');
     }
     
     // Create audio element
@@ -370,6 +379,10 @@ function playTextAsSpeech(text, messageId) {
     state.currentAudio.onended = function() {
         if (playButton) {
             playButton.innerHTML = '<i class="fas fa-play"></i>';
+            playButton.classList.remove('playing');
+        }
+        if (message) {
+            message.classList.remove('playing');
         }
         state.currentAudio = null;
     };
@@ -378,6 +391,10 @@ function playTextAsSpeech(text, messageId) {
         console.error('Error playing audio');
         if (playButton) {
             playButton.innerHTML = '<i class="fas fa-play"></i>';
+            playButton.classList.remove('playing');
+        }
+        if (message) {
+            message.classList.remove('playing');
         }
         state.currentAudio = null;
     };
@@ -412,6 +429,10 @@ function playTextAsSpeech(text, messageId) {
                 console.error('Error playing audio:', error);
                 if (playButton) {
                     playButton.innerHTML = '<i class="fas fa-play"></i>';
+                    playButton.classList.remove('playing');
+                }
+                if (message) {
+                    message.classList.remove('playing');
                 }
             });
     })
@@ -419,6 +440,10 @@ function playTextAsSpeech(text, messageId) {
         console.error('Error fetching audio:', error);
         if (playButton) {
             playButton.innerHTML = '<i class="fas fa-play"></i>';
+            playButton.classList.remove('playing');
+        }
+        if (message) {
+            message.classList.remove('playing');
         }
         state.currentAudio = null;
     });
@@ -428,11 +453,18 @@ function stopAudio() {
     if (state.currentAudio) {
         state.currentAudio.pause();
         
-        // Reset play button for the message
+        // Reset play button and message for the message
         if (state.currentAudio.messageId) {
             const playButton = document.querySelector(`#message-${state.currentAudio.messageId} .play-button`);
+            const message = document.querySelector(`#message-${state.currentAudio.messageId} .message`);
+            
             if (playButton) {
                 playButton.innerHTML = '<i class="fas fa-play"></i>';
+                playButton.classList.remove('playing');
+            }
+            
+            if (message) {
+                message.classList.remove('playing');
             }
         }
         
@@ -1065,8 +1097,15 @@ function processStreamingMessage(message, typingIndicator) {
 
                 assistantMessage.appendChild(messageDiv);
 
-                // Insert before typing indicator
+                // Insert before typing indicator with fade in animation
+                assistantMessage.style.opacity = '0';
                 chatMessages.insertBefore(assistantMessage, typingIndicator);
+                
+                // Trigger animation after a tiny delay (for browser to register)
+                setTimeout(() => {
+                    assistantMessage.style.opacity = '1';
+                    assistantMessage.style.transition = 'opacity 0.3s ease-out';
+                }, 10);
             }
             
             return assistantMessageContent;
@@ -1118,7 +1157,13 @@ function processStreamingMessage(message, typingIndicator) {
 
                         // Update the content 
                         const contentDiv = getOrCreateAssistantMessage();
-                        // Render markdown content
+                        
+                        // Create animated token span for new text
+                        const streamingSpan = document.createElement('span');
+                        streamingSpan.className = 'streaming-text';
+                        streamingSpan.textContent = data.data;
+                        
+                        // Render markdown content with animated tokens
                         contentDiv.innerHTML = marked.parse(state.currentResponse);
 
                         // Scroll to keep content in view
