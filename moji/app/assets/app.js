@@ -143,6 +143,76 @@ window.addEventListener('scroll', function() {
     }
 }, { passive: true });
 
+// Add iOS class to body to apply iOS-specific CSS
+function initIOSSafari() {
+    if (/iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream) {
+        document.body.classList.add('ios-device');
+        
+        // Get initial window height to compare later
+        const initialHeight = window.innerHeight;
+        
+        // iOS Safari needs significantly more padding
+        const main = document.querySelector('main');
+        const inputContainer = document.querySelector('.chat-input-container');
+        
+        if (main) {
+            // Apply extreme padding for iOS Safari
+            const basePadding = window.navigator.standalone ? 100 : 200;
+            main.style.paddingBottom = `calc(${basePadding}px + env(safe-area-inset-bottom, 0px))`;
+            
+            // Log for debugging
+            console.log(`iOS detected. Setting padding-bottom to ${basePadding}px + safe area`);
+        }
+        
+        // Detect when Safari toolbar shows/hides
+        window.addEventListener('resize', function() {
+            if (main) {
+                // If height is less than it was, URL bar is probably showing
+                // Increase padding even more
+                if (window.innerHeight < initialHeight - 30) {
+                    main.style.paddingBottom = 'calc(300px + env(safe-area-inset-bottom, 0px))';
+                } else {
+                    // URL bar likely hidden, use smaller padding
+                    const basePadding = window.navigator.standalone ? 210 : 260;
+                    main.style.paddingBottom = `calc(${basePadding}px + env(safe-area-inset-bottom, 0px))`;
+                }
+            }
+        }, { passive: true });
+        
+        // Apply extra fixes after load
+        window.addEventListener('load', function() {
+            // Force redraw/reflow
+            if (main) {
+                main.style.display = 'none';
+                void main.offsetHeight; // Force reflow
+                main.style.display = '';
+            }
+        });
+    }
+}
+
+// Run iOS initialization
+initIOSSafari();
+
+// Prevent zoom on input focus on iOS
+document.addEventListener('gesturestart', function(e) {
+    e.preventDefault();
+    // Disable any zoom/scaling
+    document.body.style.zoom = 1;
+    return false;
+}, { passive: false });
+
+// Prevent double-tap zoom
+document.addEventListener('touchend', function(e) {
+    // If not within a clickable element, prevent double-tap zoom
+    const clickableElements = ['BUTTON', 'A', 'INPUT', 'TEXTAREA'];
+    if (!clickableElements.includes(e.target.tagName)) {
+        e.preventDefault();
+        // Use minimal delay to allow single tap functionality
+        setTimeout(() => {}, 100);
+    }
+}, { passive: false });
+
 // Suggestion buttons
 document.querySelectorAll('.suggestion-btn').forEach(btn => {
     btn.addEventListener('click', () => {
@@ -425,6 +495,13 @@ function handleInputChange() {
     messageInput.style.height = 'auto';
     const newHeight = Math.min(messageInput.scrollHeight, 150);
     messageInput.style.height = newHeight + 'px';
+    
+    // Prevent iOS zoom on input (disable font-size adjustment)
+    if (/iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream) {
+        // iOS Safari tries to zoom in when input font-size is less than 16px
+        // Force font-size to exactly 16px while typing
+        messageInput.style.fontSize = '16px';
+    }
 }
 
 // Handle voice input button click

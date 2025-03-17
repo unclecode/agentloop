@@ -2,12 +2,14 @@
 main {
     flex: 1;
     overflow-y: hidden;
-    /* padding-top: 60px;  */
-    /* padding-bottom: 73px; ß */
-    padding-bottom: 98px; /* Space for input container */
+    /* Fixed padding plus safe area insets - overridden for iOS in JS */
+    padding-bottom: calc(100px + env(safe-area-inset-bottom, 0px));
+    /* Use viewport height */
     height: 100vh;
     width: 100%;
     position: relative;
+    /* Smooth padding transitions */
+    transition: padding-bottom 0.2s ease;
 }
 
 .chat-messages {

@@ -15,6 +15,9 @@ from flask import Flask, request, jsonify, render_template, Response, stream_wit
 from flask_cors import CORS
 
 from config import DB_URI, DB_NAME, OPENAI_API_KEY, MODELS
+
+# Current app version - used for PWA updates
+APP_VERSION = "1.0.0"  # Must match version in service-worker.js and version-manager.js
 from moji_assistant import MojiAssistant
 from pymongo import MongoClient
 
@@ -165,6 +168,15 @@ def log_bug_report(user_id: str, report_data: Dict[str, Any]) -> None:
 def index():
     """Render the main page"""
     return render_template('index.html')
+
+@app.route('/api/version', methods=['GET'])
+def get_version():
+    """Return the current app version for PWA updates"""
+    return jsonify({
+        'version': APP_VERSION,
+        'build_date': '2025-03-17',
+        'release_notes': 'Initial release of Moji Assistant with new ChatGPT-style interface'
+    })
 
 @app.route('/api/auth', methods=['POST'])
 def authenticate():

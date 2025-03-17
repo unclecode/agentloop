@@ -1,6 +1,6 @@
 /* _input.css */
 .chat-input-container {
-    padding: 0.5rem 0.75rem 0.75rem;
+    padding: 0.5rem 0.75rem calc(0.75rem + env(safe-area-inset-bottom, 0px));
     position: fixed;
     bottom: 0;
     left: 0;
@@ -89,7 +89,7 @@
     background: transparent;
     border: none;
     padding: 0;
-    font-size: 0.95rem;
+    font-size: 16px; /* Exactly 16px prevents iOS zoom */
     color: var(--text-color);
     font-family: 'Inter', sans-serif;
     width: 100%;
@@ -99,6 +99,9 @@
     max-height: 150px;
     line-height: 1.5;
     min-height: 24px;
+    -webkit-appearance: none; /* Remove iOS default styling */
+    appearance: none;
+    border-radius: 0; /* Avoid iOS rounded inputs */
 }
 
 .chat-input-container .input-field textarea::placeholder {
@@ -202,7 +205,7 @@
 /* Media Queries */
 @media (max-width: 768px) {
     .chat-input-container {
-        padding: 0.5rem 0.6rem 0.6rem;
+        padding: 0.5rem 0.6rem calc(0.6rem + env(safe-area-inset-bottom, 0px));
     }
     
     .chat-input-container .action-button,
@@ -221,7 +224,7 @@
     }
     
     .chat-input-container .input-field textarea {
-        font-size: 0.9rem;
+        font-size: 16px; /* Keep at exactly 16px even on mobile to prevent iOS zoom */
     }
     
     .chat-input-container .attachment-menu {

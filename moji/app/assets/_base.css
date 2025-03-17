@@ -17,6 +17,7 @@ body {
     /* overflow-x: hidden; */
     overflow: hidden;
     font-family: 'Poppins', 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+    position: relative; /* For absolute positioning of elements */
 }
 
 /* Particles background container */

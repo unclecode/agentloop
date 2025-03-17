@@ -1,7 +1,60 @@
 /* _media_queries.css */
 @media (max-width: 768px) {
+    html {
+        touch-action: manipulation;  /* Better touch behavior on mobile */
+    }
+    
+    /* Prevent iOS zoom on input focus */
+    input, textarea, select, button {
+        font-size: 16px !important;
+    }
+    
+    /* Disable callouts, highlighting, etc. */
+    * {
+        -webkit-touch-callout: none;  /* Disable callout menu on long-press */
+        -webkit-tap-highlight-color: transparent; /* Remove tap highlight */
+    }
+    
+    /* Allow selection in specific elements that need it */
+    input, textarea, [contenteditable="true"] {
+        -webkit-user-select: text;
+        user-select: text;
+    }
+    
+    /* Fix for iOS sticky header and viewport issues */
+    body.ios-device {
+        /* Ensure content doesn't go under the status bar */
+        padding-top: env(safe-area-inset-top);
+        /* Fix for the bottom toolbar in iOS Safari */
+        padding-bottom: env(safe-area-inset-bottom);
+    }
+    
+    /* Smoother scrolling on iOS */
+    .chat-messages {
+        -webkit-overflow-scrolling: touch;
+    }
+    
+    /* Prevent double-tap zoom on buttons */
+    button, .suggestion-btn, .action-button {
+        touch-action: manipulation;
+    }
+    
+    /* Regular mobile styles */
     body {
         font-size: 15px;
+    }
+    
+    /* Adjust main padding for mobile */
+    main {
+        padding-bottom: calc(145px + env(safe-area-inset-bottom, 0px));
+    }
+    
+    /* iOS Safari specific adjustments */
+    @supports (-webkit-touch-callout: none) {
+        /* iOS specific styles */
+        main {
+            padding-bottom: calc(180px + env(safe-area-inset-bottom, 0px));
+        }
     }
 
     .message {
@@ -160,5 +213,203 @@
 
     .message p:first-child {
         padding-right: 30px;
+    }
+}
+
+/* Version management and update styling */
+.version-container {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0.6rem 0.8rem;
+    margin-top: 0.5rem;
+    border-top: 1px solid var(--border-color);
+}
+
+.version-info {
+    font-size: 0.9rem;
+    color: var(--text-color);
+    opacity: 0.8;
+}
+
+.version-info span {
+    font-weight: 500;
+}
+
+/* Update toast notification */
+.update-toast {
+    position: fixed;
+    bottom: 20px;
+    left: 50%;
+    transform: translateX(-50%) translateY(100px);
+    background-color: var(--container-bg);
+    border-radius: 12px;
+    padding: 0.8rem 1rem;
+    min-width: 300px;
+    max-width: 90%;
+    box-shadow: 0 5px 25px rgba(0, 0, 0, 0.4);
+    display: flex;
+    flex-direction: column;
+    z-index: 9999;
+    border: 1px solid var(--border-color);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    opacity: 0;
+    transition: transform 0.3s ease, opacity 0.3s ease;
+}
+
+.update-toast.show-toast {
+    transform: translateX(-50%) translateY(0);
+    opacity: 1;
+}
+
+.toast-content {
+    display: flex;
+    align-items: center;
+    padding-bottom: 0.5rem;
+}
+
+.toast-content i {
+    font-size: 1.5rem;
+    margin-right: 1rem;
+    color: var(--primary-color);
+}
+
+.toast-message {
+    flex: 1;
+}
+
+.toast-title {
+    display: block;
+    font-weight: 600;
+    margin-bottom: 0.2rem;
+}
+
+.toast-text {
+    font-size: 0.9rem;
+    opacity: 0.9;
+}
+
+.toast-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 0.8rem;
+    margin-top: 0.5rem;
+}
+
+.toast-actions button {
+    padding: 0.5rem 0.8rem;
+    border-radius: 8px;
+    border: none;
+    font-size: 0.85rem;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+#update-now-btn {
+    background-color: var(--primary-color);
+    color: white;
+}
+
+#update-now-btn:hover {
+    background-color: var(--secondary-color);
+    transform: translateY(-2px);
+}
+
+#update-later-btn {
+    background-color: transparent;
+    border: 1px solid var(--border-color);
+    color: var(--text-color);
+}
+
+#update-later-btn:hover {
+    background-color: rgba(255, 255, 255, 0.05);
+}
+
+/* Info toast - simpler version */
+.info-toast {
+    padding: 0.8rem 1.2rem;
+}
+
+.info-toast .toast-content {
+    padding-bottom: 0;
+}
+
+/* PWA Install button styling */
+.install-button {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background-color: var(--primary-color);
+    color: white;
+    border: none;
+    border-radius: 12px;
+    padding: 0.8rem 1.5rem;
+    margin-top: 1.5rem;
+    font-size: 1rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    width: 100%;
+    box-shadow: 0 4px 15px rgba(74, 156, 246, 0.3);
+}
+
+.install-button:hover {
+    background-color: var(--secondary-color);
+    transform: translateY(-2px);
+    box-shadow: 0 6px 20px rgba(74, 156, 246, 0.4);
+}
+
+.install-button i {
+    margin-right: 0.5rem;
+}
+
+.settings-action-btn {
+    background-color: var(--primary-color);
+    color: white;
+    border-radius: 50%;
+    width: 36px;
+    height: 36px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: none;
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+.settings-action-btn:hover {
+    background-color: var(--secondary-color);
+    transform: translateY(-2px);
+}
+
+/* PWA fullscreen mode optimizations */
+@media all and (display-mode: standalone) {
+    /* Adjust for standalone PWA mode */
+    body {
+        /* Add extra padding for iOS home indicator in PWA mode */
+        padding-bottom: env(safe-area-inset-bottom, 20px);
+    }
+    
+    /* Make header respect safe area in standalone mode */
+    .chat-header {
+        padding-top: max(0.8rem, env(safe-area-inset-top));
+        padding-left: max(1rem, env(safe-area-inset-left));
+        padding-right: max(1rem, env(safe-area-inset-right));
+    }
+    
+    /* Add iOS home indicator spacing to input on bottom */
+    .chat-input-container {
+        padding-bottom: env(safe-area-inset-bottom, 10px);
+    }
+    
+    /* Hide browser UI elements that might still be visible */
+    .app-container {
+        height: 100vh;
+        width: 100vw;
+        position: fixed;
+        top: 0;
+        left: 0;
+        overflow: hidden;
     }
 }
