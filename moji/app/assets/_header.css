@@ -11,11 +11,18 @@
     left: 0;
     right: 0;
     width: 100%;
-    z-index: 10;
+    z-index: 100; /* Increased z-index */
     box-shadow: 0 2px 20px rgba(0, 0, 0, 0.3);
     border-bottom: 1px solid rgba(255, 255, 255, 0.05);
     backdrop-filter: blur(12px);
     -webkit-backdrop-filter: blur(12px);
+    transform: translateZ(0); /* Force GPU rendering in Safari */
+    -webkit-transform: translateZ(0);
+    will-change: transform; /* Hint to browser this element will change */
+    /* iOS Safari inset handling */
+    padding-top: max(0.8rem, env(safe-area-inset-top));
+    padding-left: max(1rem, env(safe-area-inset-left));
+    padding-right: max(1rem, env(safe-area-inset-right));
 }
 
 .user-info {
@@ -128,4 +135,20 @@ input:checked + .slider:before {
     background-color: rgba(100, 181, 246, 0.2);
     color: var(--primary-color);
     transform: translateY(-2px);
+}
+
+/* iOS-specific fixes */
+.ios-device .chat-header {
+    /* Prevent Safari iOS issues with fixed positioning */
+    position: -webkit-sticky;
+    position: sticky;
+    -webkit-backface-visibility: hidden;
+    backface-visibility: hidden;
+    -webkit-perspective: 1000;
+    perspective: 1000;
+    /* Force GPU rendering */
+    -webkit-transform: translate3d(0,0,0);
+    transform: translate3d(0,0,0);
+    /* Higher z-index for iOS */
+    z-index: 9999 !important;
 }

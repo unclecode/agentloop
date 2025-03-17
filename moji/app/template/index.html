@@ -2,8 +2,8 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Moji Assistant</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, minimal-ui">
+    <title>Moji Assistant (ChatGPT Style)</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
     <link rel="stylesheet" href="/assets/app.css">
     <link rel="stylesheet" href="/assets/glassy-theme.css">
@@ -51,10 +51,11 @@
         
         <!-- Chat Screen -->
         <div id="chat-screen" class="screen">
-            <div class="chat-header">
+            <!-- Chat header with iOS-specific attributes -->
+            <div class="chat-header" id="chat-header">
                 <div class="user-info">
                     <i class="fas fa-film"></i>
-                    <h2>Moji Assistant</h2>
+                    <h2>Moji+</h2>
                 </div>
                 <div class="header-actions">
                     <!-- Settings dropdown -->
@@ -120,11 +121,47 @@
             
             <div class="chat-input-container">
                 <form id="message-form">
-                    <div class="input-group">
-                        <input type="text" id="message-input" placeholder="Type your message..." autocomplete="off">
-                        <button type="submit" id="send-button" disabled>
-                            <i class="fas fa-arrow-up"></i>
-                        </button>
+                    <!-- First row: textarea for input -->
+                    <div class="text-input-row">
+                        <div class="input-field">
+                            <textarea id="message-input" placeholder="Message Moji..." rows="1"></textarea>
+                        </div>
+                    </div>
+                    
+                    <!-- Second row: buttons -->
+                    <div class="button-row">
+                        <div class="input-buttons">
+                            <button type="button" class="action-button plus-button" id="plus-button">
+                                <i class="fas fa-plus"></i>
+                            </button>
+                            <button type="button" class="action-button attach-button" id="attach-button">
+                                <i class="fas fa-paperclip"></i>
+                            </button>
+                        </div>
+                        <div class="input-buttons right-buttons">
+                            <button type="button" class="action-button mic-button" id="mic-button">
+                                <i class="fas fa-microphone"></i>
+                            </button>
+                            <button type="submit" class="send-button" id="send-button" disabled>
+                                <i class="fas fa-arrow-up"></i>
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <!-- Attachment Menu (hidden by default) -->
+                    <div class="attachment-menu" id="attachment-menu">
+                        <div class="attachment-option" id="attach-photos">
+                            <span>Attach Photos</span>
+                            <i class="fas fa-image"></i>
+                        </div>
+                        <div class="attachment-option" id="take-photo">
+                            <span>Take Photo</span>
+                            <i class="fas fa-camera"></i>
+                        </div>
+                        <div class="attachment-option" id="attach-files">
+                            <span>Attach Files</span>
+                            <i class="fas fa-folder"></i>
+                        </div>
                     </div>
                 </form>
             </div>

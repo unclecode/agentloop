@@ -9,6 +9,10 @@ const loginSpinner = document.getElementById('login-spinner');
 const messageForm = document.getElementById('message-form');
 const messageInput = document.getElementById('message-input');
 const sendButton = document.getElementById('send-button');
+const plusButton = document.getElementById('plus-button');
+const attachButton = document.getElementById('attach-button');
+const micButton = document.getElementById('mic-button');
+const attachmentMenu = document.getElementById('attachment-menu');
 const chatMessages = document.getElementById('chat-messages');
 const clearMemoryBtn = document.getElementById('clear-memory-btn');
 const reportBugBtn = document.getElementById('report-bug-btn');
@@ -42,12 +46,32 @@ const state = {
 
 // Event Listeners
 document.addEventListener('DOMContentLoaded', init);
+
+// Add Safari-specific scroll event handler to keep header visible
+window.addEventListener('scroll', function() {
+    const chatHeader = document.querySelector('.chat-header');
+    if (chatHeader) {
+        // Force header visibility on any scroll
+        chatHeader.style.visibility = 'visible';
+        chatHeader.style.opacity = '1';
+    }
+}, { passive: true }); // Passive for better performance
 loginForm.addEventListener('submit', handleLogin);
 messageForm.addEventListener('submit', handleSendMessage);
 messageInput.addEventListener('input', handleInputChange);
 clearMemoryBtn.addEventListener('click', () => toggleModal(clearMemoryModal, true));
 reportBugBtn.addEventListener('click', () => toggleModal(bugModal, true));
 logoutBtn.addEventListener('click', handleLogout);
+
+// ChatGPT-style input elements
+plusButton.addEventListener('click', toggleAttachmentMenu);
+attachButton.addEventListener('click', () => handleAttachment('files'));
+micButton.addEventListener('click', handleVoiceInput);
+
+// Attachment options
+document.getElementById('attach-photos').addEventListener('click', () => handleAttachment('photos'));
+document.getElementById('take-photo').addEventListener('click', () => handleAttachment('camera')); 
+document.getElementById('attach-files').addEventListener('click', () => handleAttachment('files'));
 closeModalBtn.addEventListener('click', () => toggleModal(bugModal, false));
 submitBugBtn.addEventListener('click', handleBugReport);
 cancelBugBtn.addEventListener('click', () => toggleModal(bugModal, false));
@@ -81,6 +105,14 @@ document.addEventListener('click', (e) => {
         !settingsToggle.contains(e.target)) {
         settingsMenu.classList.remove('active');
     }
+    
+    // Force header visibility on any click (helps with iOS Safari)
+    const chatHeader = document.querySelector('.chat-header');
+    if (chatHeader) {
+        chatHeader.style.visibility = 'visible';
+        chatHeader.style.display = 'flex';
+        chatHeader.style.opacity = '1';
+    }
 });
 
 // Add escape key listener to stop audio
@@ -90,7 +122,26 @@ document.addEventListener('keydown', (e) => {
         // Also close settings menu if open
         document.getElementById('settings-menu').classList.remove('active');
     }
+
+    // Force header visibility on any key press (helps with iOS Safari)
+    const chatHeader = document.querySelector('.chat-header');
+    if (chatHeader) {
+        chatHeader.style.visibility = 'visible';
+        chatHeader.style.display = 'flex';
+        chatHeader.style.opacity = '1';
+    }
 });
+
+// Add scroll event listener to ensure header remains visible
+window.addEventListener('scroll', function() {
+    // Ensure header stays visible on scroll (especially for iOS Safari)
+    const chatHeader = document.querySelector('.chat-header');
+    if (chatHeader) {
+        chatHeader.style.visibility = 'visible';
+        chatHeader.style.display = 'flex';
+        chatHeader.style.opacity = '1';
+    }
+}, { passive: true });
 
 // Suggestion buttons
 document.querySelectorAll('.suggestion-btn').forEach(btn => {
@@ -166,6 +217,36 @@ function init() {
 
     // Enable/disable send button based on input
     handleInputChange();
+    
+    // iOS Safari-specific fixes
+    if (/iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream) {
+        console.log("iOS device detected - applying Safari header fixes");
+        // Ensure chat-header is always visible for iOS Safari
+        const chatHeader = document.querySelector('.chat-header');
+        if (chatHeader) {
+            // Apply additional iOS-specific styles
+            chatHeader.style.webkitTransform = 'translateZ(0)';
+            chatHeader.style.transform = 'translateZ(0)';
+            chatHeader.style.willChange = 'transform';
+            chatHeader.style.zIndex = '1000'; // Very high z-index
+            
+            // Force display on iOS with periodic checks
+            setInterval(function() {
+                chatHeader.style.visibility = 'visible';
+                chatHeader.style.display = 'flex';
+                chatHeader.style.opacity = '1';
+            }, 500); // Check every 500ms
+        }
+        
+        // Add iOS-specific class to body
+        document.body.classList.add('ios-device');
+        
+        // Add additional meta viewport settings
+        const metaViewport = document.querySelector('meta[name="viewport"]');
+        if (metaViewport) {
+            metaViewport.setAttribute('content', 'width=device-width, initial-scale=1.0, viewport-fit=cover, minimal-ui');
+        }
+    }
 }
 
 // Function to load conversation history from the server
@@ -311,8 +392,67 @@ function displayWelcomeMessage() {
     });
 }
 
+// Helper functions for ChatGPT-style input
+
+// Toggle the attachment menu
+function toggleAttachmentMenu() {
+    attachmentMenu.classList.toggle('active');
+    
+    // Add event listener to close menu when clicking outside
+    if (attachmentMenu.classList.contains('active')) {
+        setTimeout(() => {
+            document.addEventListener('click', closeAttachmentMenuOutside);
+        }, 10);
+    }
+}
+
+// Close attachment menu when clicking outside
+function closeAttachmentMenuOutside(e) {
+    if (!attachmentMenu.contains(e.target) && !plusButton.contains(e.target)) {
+        attachmentMenu.classList.remove('active');
+        document.removeEventListener('click', closeAttachmentMenuOutside);
+    }
+}
+
+// Handle textarea input and auto-resize
 function handleInputChange() {
-    sendButton.disabled = !messageInput.value.trim();
+    const inputValue = messageInput.value.trim();
+    
+    // Enable/disable send button
+    sendButton.disabled = !inputValue;
+    
+    // Auto-resize textarea to fit content
+    messageInput.style.height = 'auto';
+    const newHeight = Math.min(messageInput.scrollHeight, 150);
+    messageInput.style.height = newHeight + 'px';
+}
+
+// Handle voice input button click
+function handleVoiceInput() {
+    alert('Voice input functionality coming soon!');
+}
+
+// Handle attachment options
+function handleAttachment(type) {
+    let message;
+    
+    switch(type) {
+        case 'photos':
+            message = 'Photo attachment functionality coming soon!';
+            break;
+        case 'camera':
+            message = 'Camera functionality coming soon!';
+            break;
+        case 'files':
+            message = 'File attachment functionality coming soon!';
+            break;
+        default:
+            message = 'Attachment functionality coming soon!';
+    }
+    
+    alert(message);
+    attachmentMenu.classList.remove('active');
+    document.removeEventListener('click', closeAttachmentMenuOutside);
 }
 
 function toggleStreamingMode(e) {
@@ -563,8 +703,9 @@ async function handleSendMessage(e) {
     // Add user message to chat
     addMessage(message, 'user');
 
-    // Clear input
+    // Clear input and reset textarea height
     messageInput.value = '';
+    messageInput.style.height = 'auto';
     handleInputChange();
 
     // Show typing indicator
@@ -1798,7 +1939,29 @@ function removeElement(element) {
 }
 
 function scrollToBottom() {
+    // Get the header element by ID for more reliability
+    const chatHeader = document.getElementById('chat-header');
+    
+    // Ensure header stays visible regardless of scroll position
+    if (chatHeader) {
+        chatHeader.style.visibility = 'visible';
+        chatHeader.style.opacity = '1';
+        chatHeader.style.display = 'flex';
+        
+        // Force reflow/repaint to ensure visibility in iOS Safari
+        void chatHeader.offsetHeight;
+    }
+    
+    // Smooth scroll to bottom
     chatMessages.scrollTop = chatMessages.scrollHeight;
+    
+    // Additional check after scrolling completes
+    setTimeout(() => {
+        if (chatHeader) {
+            chatHeader.style.visibility = 'visible';
+            chatHeader.style.opacity = '1';
+        }
+    }, 100);
 }
 
 function toggleModal(modal, show) {

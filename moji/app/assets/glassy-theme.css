@@ -48,6 +48,11 @@
     --border-color: rgba(130, 160, 240, 0.2);
     --input-bg: rgba(25, 35, 65, 0.4);
     --text-color: #f8f9ff;
+    
+    /* Update colors to match app theme */
+    --chatgpt-dark: var(--background-color);
+    --chatgpt-button: var(--container-bg);
+    --chatgpt-button-hover: var(--highlight-color);
 }
 
 body {
@@ -132,6 +137,9 @@ body::before {
 
 .chat-header {
     background-color: var(--header-bg);
+    border-left: none;
+    border-right: none;
+    border-top: None;
     border-bottom: 1px solid var(--border-color);
 }
 
