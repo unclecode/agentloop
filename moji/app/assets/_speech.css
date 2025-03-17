@@ -1,0 +1,136 @@
+/* Speech to Text Styles */
+
+/* Microphone button states */
+.mic-button {
+    position: relative;
+    transition: all 0.3s ease;
+}
+
+.mic-button.recording {
+    background-color: #f44336 !important;
+    animation: pulse 1.5s infinite;
+}
+
+.mic-button.processing {
+    background-color: var(--accent-color);
+}
+
+/* Pulse animation around mic button when recording */
+.mic-pulse {
+    position: absolute;
+    width: 48px;
+    height: 48px;
+    border-radius: 50%;
+    background: rgba(244, 67, 54, 0.2);
+    z-index: 1;
+    pointer-events: none;
+    transform: translate(-50%, -50%);
+    top: 50%;
+    left: 50%;
+    animation: mic-ripple 1.5s infinite ease-in-out;
+}
+
+@keyframes mic-ripple {
+    0% {
+        transform: translate(-50%, -50%) scale(0.8);
+        opacity: 1;
+    }
+    100% {
+        transform: translate(-50%, -50%) scale(1.6);
+        opacity: 0;
+    }
+}
+
+@keyframes pulse {
+    0% {
+        box-shadow: 0 0 0 0 rgba(244, 67, 54, 0.4);
+    }
+    70% {
+        box-shadow: 0 0 0 10px rgba(244, 67, 54, 0);
+    }
+    100% {
+        box-shadow: 0 0 0 0 rgba(244, 67, 54, 0);
+    }
+}
+
+/* Toast notifications */
+.toast-container {
+    position: fixed;
+    bottom: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 9999;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+    pointer-events: none;
+}
+
+.toast {
+    background-color: var(--modal-bg);
+    color: var(--text-color);
+    padding: 12px 20px;
+    border-radius: 30px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+    margin-bottom: 10px;
+    opacity: 0;
+    transform: translateY(20px);
+    transition: all 0.3s ease;
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    border: 1px solid var(--border-color);
+    max-width: 80vw;
+    text-align: center;
+    font-size: 14px;
+}
+
+.toast.show {
+    opacity: 1;
+    transform: translateY(0);
+}
+
+/* Enhanced microphone button styling for the glass theme */
+.input-buttons .action-button.mic-button {
+    background: linear-gradient(135deg, rgba(74, 156, 246, 0.3) 0%, rgba(33, 150, 243, 0.5) 100%);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    position: relative;
+    overflow: hidden;
+}
+
+.input-buttons .action-button.mic-button::before {
+    content: "";
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 30%;
+    background: var(--glass-reflection);
+    pointer-events: none;
+    z-index: 1;
+}
+
+.input-buttons .action-button.mic-button:hover {
+    background: linear-gradient(135deg, rgba(74, 156, 246, 0.5) 0%, rgba(33, 150, 243, 0.7) 100%);
+    transform: translateY(-2px);
+}
+
+.input-buttons .action-button.mic-button:active {
+    transform: translateY(1px);
+}
+
+/* Safari-specific adjustments */
+@supports (-webkit-touch-callout: none) {
+    .input-buttons .action-button.mic-button {
+        /* Ensure Safari properly renders backdrop filters */
+        transform: translateZ(0);
+    }
+    
+    /* Fix for pulse animation on iOS Safari */
+    .mic-pulse {
+        will-change: transform, opacity;
+    }
+}

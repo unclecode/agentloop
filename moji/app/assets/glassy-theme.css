@@ -11,7 +11,8 @@
 
     /* UI Element backgrounds */
     --header-bg: rgba(15, 20, 35, 0.5);
-    --menu-bg: rgba(15, 22, 40, 0.7);
+    /* --menu-bg: rgba(15, 22, 40, 0.7); */
+    --menu-bg: rgb(15 22 40 / 95%);
     --switch-off-bg: rgba(70, 80, 120, 0.5);
     --button-color: #f0f0f0;
 

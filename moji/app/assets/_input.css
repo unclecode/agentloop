@@ -7,8 +7,10 @@
     right: 0;
     width: 100%;
     z-index: 100;
-    background-color: var(--background-color);
-    border-top: 1px solid var(--border-color);
+    /* background-color: var(--background-color);
+    border-top: 1px solid var(--border-color); */
+    background-color: #162a53;
+    border-top: 1px solid #2b3b5d;
     border-radius: 2em 2em 0 0;
 }
 
@@ -51,6 +53,7 @@
     transition: all 0.2s ease;
     border: 1px solid var(--border-color);
     cursor: pointer;
+    position: relative;
 }
 
 .chat-input-container .action-button i {

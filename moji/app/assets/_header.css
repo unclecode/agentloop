@@ -137,6 +137,21 @@ input:checked + .slider:before {
     transform: translateY(-2px);
 }
 
+/* Update button styling */
+#check-updates-header-btn {
+    color: var(--text-color);
+    position: relative;
+}
+
+#check-updates-header-btn:hover {
+    animation: spin 1s infinite linear;
+}
+
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
 /* iOS-specific fixes */
 .ios-device .chat-header {
     /* Prevent Safari iOS issues with fixed positioning */

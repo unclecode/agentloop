@@ -1,27 +1,21 @@
-.playing {
+.rotating-border {
     position: relative;
-    width: 300px; /* set your preferred width */
-    height: 400px; /* set your preferred height */
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    overflow: hidden; /* prevents the pseudo elements from overflowing */
-    border-radius: 16px;
-  
-    /* This applies the border only when the 'playing' class is active */
+    overflow: hidden;
+    border-radius: 0.25rem;
+    /* Other customizable styles can be placed here */
   }
   
-  .playing::before {
+  .rotating-border::before {
     content: '';
     position: absolute;
-    width: 170px; /* set your preferred width */
-    height: 140%; /* This height will cover more of the box */
-    background: linear-gradient(#00ccff, #d500f9); /* set your preferred color */
-    animation: rotate 4s linear infinite; /* adjust rotation speed as needed */
-    z-index: 2; /* Ensure this element appears in front of the element */
+    inset: 0; /* Ensures it covers the entire element */
+    border-radius: inherit; /* Match parent's border radius */
+    background: linear-gradient(45deg, #2980b9, #e74c3c, #f39c12); /* Choose your colors */
+    z-index: -1; /* Send it behind the content */
+    animation: spin 4s linear infinite;
   }
   
-  @keyframes rotate {
+  @keyframes spin {
     from {
       transform: rotate(0deg);
     }

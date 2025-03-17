@@ -44,6 +44,13 @@ class VersionManager {
       setTimeout(() => this.showInfoToast('App successfully updated!'), 1000);
     }
     
+    // Add check for updates button to header
+    // We need to wait for DOM to be ready and authenticated
+    window.addEventListener('load', () => {
+      // Delay adding the button to ensure header is loaded
+      setTimeout(() => this.addCheckForUpdatesButton(), 3000);
+    });
+    
     // Initial version check after app loads (with delay to allow page to render)
     window.addEventListener('load', () => {
       setTimeout(() => this.checkForUpdates(false), 2000);
@@ -206,7 +213,8 @@ class VersionManager {
     
     for (let i = 0; i < serverParts.length; i++) {
       // If server has more parts or larger part, it's newer
-      if (!currentParts[i] || serverParts[i] > currentParts[i]) {
+    //   if (!currentParts[i] || serverParts[i] > currentParts[i]) {
+      if ( serverParts[i] > currentParts[i]) {
         return true;
       }
       // If current has larger part, server is not newer
@@ -305,6 +313,73 @@ class VersionManager {
     // Show updating message
     this.showInfoToast('Updating application...');
     
+    // Perform the actual update
+    this._performUpdate(true);
+  }
+  
+  /**
+   * Renew service worker without version check
+   * - Called on login to ensure fresh content
+   * - Won't show update toast or reload page if not needed
+   */
+  renewServiceWorker() {
+    console.log('Forcing service worker renewal on login');
+    
+    // First check if there's a newer version
+    this.checkForUpdates(false);
+    
+    // Regardless of version, refresh the service worker registration
+    // but don't reload page or show messages unless needed
+    if ('serviceWorker' in navigator) {
+      // Only reset the service worker registration
+      navigator.serviceWorker.getRegistration()
+        .then(registration => {
+          if (registration) {
+            // Update the service worker
+            console.log('Updating service worker registration');
+            registration.update();
+          }
+        })
+        .catch(error => {
+          console.error('Error renewing service worker:', error);
+        });
+    }
+  }
+  
+  /**
+   * Button to check for updates and force renew if needed
+   * - Add a check button to the header
+   */
+  addCheckForUpdatesButton() {
+    // Add a button to the header for checking updates
+    const headerActions = document.querySelector('.header-actions');
+    if (headerActions) {
+      const checkButton = document.createElement('button');
+      checkButton.id = 'check-updates-header-btn';
+      checkButton.title = 'Check for updates';
+      checkButton.innerHTML = '<i class="fas fa-sync-alt"></i>';
+      
+      // Insert before logout button
+      const logoutBtn = document.getElementById('logout-btn');
+      if (logoutBtn) {
+        headerActions.insertBefore(checkButton, logoutBtn);
+      } else {
+        headerActions.appendChild(checkButton);
+      }
+      
+      // Add event listener
+      checkButton.addEventListener('click', () => {
+        this.checkForUpdates(true);
+      });
+    }
+  }
+  
+  /**
+   * Internal method to perform the actual update
+   * @param {boolean} showMessage - Whether to show update messages
+   * @private
+   */
+  _performUpdate(showMessage = true) {
     // Get all service worker registrations
     if ('serviceWorker' in navigator) {
       navigator.serviceWorker.getRegistration()
@@ -330,8 +405,10 @@ class VersionManager {
           // Reload the page to get the new version
           console.log('Update complete, reloading page...');
           
-          // Set a flag in session storage to show success message after reload
-          sessionStorage.setItem('app_updated', 'true');
+          if (showMessage) {
+            // Set a flag in session storage to show success message after reload
+            sessionStorage.setItem('app_updated', 'true');
+          }
           
           // Hard reload to get fresh assets
           window.location.reload(true);
@@ -340,11 +417,15 @@ class VersionManager {
           console.error('Error during update:', error);
           this.updateInProgress = false;
           this.isUpdating = false;
-          this.showInfoToast('Update failed. Please try again.');
+          if (showMessage) {
+            this.showInfoToast('Update failed. Please try again.');
+          }
         });
     } else {
       // If service worker not supported, just reload
-      sessionStorage.setItem('app_updated', 'true');
+      if (showMessage) {
+        sessionStorage.setItem('app_updated', 'true');
+      }
       window.location.reload(true);
     }
   }

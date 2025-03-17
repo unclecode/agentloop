@@ -4,6 +4,7 @@ import json
 import time
 import traceback
 import requests
+import tempfile
 from datetime import datetime
 from typing import Optional, Dict, Any
 
@@ -17,7 +18,7 @@ from flask_cors import CORS
 from config import DB_URI, DB_NAME, OPENAI_API_KEY, MODELS
 
 # Current app version - used for PWA updates
-APP_VERSION = "1.0.0"  # Must match version in service-worker.js and version-manager.js
+APP_VERSION = "1.0.1"  # Must match version in service-worker.js and version-manager.js
 from moji_assistant import MojiAssistant
 from pymongo import MongoClient
 
@@ -249,9 +250,12 @@ def get_conversation_history():
             elif msg.get('content', '').startswith('Function call:') or msg.get('content', '').startswith('Tool call:'):
                 msg['role'] = 'tool'
         
+        # Ensure all content is JSON serializable and properly escaped
+        safe_messages = [json.dumps(msg, ensure_ascii=False) for msg in formatted_messages]
+        
         return jsonify({
             "success": True,
-            "messages": formatted_messages
+            "messages": safe_messages
         })
     except Exception as e:
         print(f"Error retrieving conversation history: {str(e)}")
@@ -494,7 +498,69 @@ def get_movie_poster():
             "media_type": media_type
         }), 500
 
+@app.route('/api/speech-to-text', methods=['POST'])
+def speech_to_text():
+    """Convert speech audio to text using OpenAI Whisper API"""
+    # Check if file was uploaded
+    if 'audio' not in request.files:
+        return jsonify({"success": False, "error": "No audio file provided"}), 400
+    
+    audio_file = request.files['audio']
+    
+    # Validate the file
+    if audio_file.filename == '':
+        return jsonify({"success": False, "error": "No selected file"}), 400
+    
+    # List of valid audio extensions
+    valid_extensions = ['mp3', 'mp4', 'mpeg', 'mpga', 'm4a', 'wav', 'webm']
+    file_extension = audio_file.filename.rsplit('.', 1)[1].lower() if '.' in audio_file.filename else ''
+    
+    if file_extension not in valid_extensions:
+        return jsonify({
+            "success": False, 
+            "error": f"Invalid file format. Supported formats: {', '.join(valid_extensions)}"
+        }), 400
+    
+    try:
+        # Import OpenAI
+        from openai import OpenAI
+        
+        # Create OpenAI client
+        client = OpenAI(api_key=OPENAI_API_KEY)
+        
+        # Create a temporary file to save the uploaded audio
+        # This is necessary because OpenAI's API expects a file path, not a file object
+        with tempfile.NamedTemporaryFile(suffix=f'.{file_extension}', delete=False) as temp_file:
+            audio_file.save(temp_file.name)
+            temp_file_path = temp_file.name
+        
+        # Process the audio file with Whisper API
+        try:
+            with open(temp_file_path, 'rb') as audio_data:
+                transcription = client.audio.transcriptions.create(
+                    model="whisper-1",
+                    file=audio_data,
+                    response_format="text"
+                )
+            
+            # Return the transcription
+            return jsonify({
+                "success": True,
+                "text": transcription
+            })
+        finally:
+            # Clean up the temporary file
+            if os.path.exists(temp_file_path):
+                os.unlink(temp_file_path)
+                
+    except Exception as e:
+        print(f"Error transcribing audio: {str(e)}")
+        return jsonify({
+            "success": False,
+            "error": str(e)
+        }), 500
+
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=9030, debug=True)
-    # app.run(host='0.0.0.0', port=9030, debug=False)
+    # app.run(host='0.0.0.0', port=9030, debug=True)
+    app.run(host='0.0.0.0', port=9030, debug=False)
 

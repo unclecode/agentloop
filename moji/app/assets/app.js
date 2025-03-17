@@ -11,7 +11,7 @@ const messageInput = document.getElementById('message-input');
 const sendButton = document.getElementById('send-button');
 const plusButton = document.getElementById('plus-button');
 const attachButton = document.getElementById('attach-button');
-const micButton = document.getElementById('mic-button');
+// Mic button is handled in speech-to-text.js
 const attachmentMenu = document.getElementById('attachment-menu');
 const chatMessages = document.getElementById('chat-messages');
 const clearMemoryBtn = document.getElementById('clear-memory-btn');
@@ -49,14 +49,47 @@ document.addEventListener('DOMContentLoaded', init);
 
 // Add Safari-specific scroll event handler to keep header visible
 window.addEventListener('scroll', function() {
+    fixChatHeaderForSafari();
+}, { passive: true }); // Passive for better performance
+
+// Helper function to fix chat header visibility in Safari
+function fixChatHeaderForSafari() {
     const chatHeader = document.querySelector('.chat-header');
     if (chatHeader) {
-        // Force header visibility on any scroll
+        // Force header visibility
         chatHeader.style.visibility = 'visible';
         chatHeader.style.opacity = '1';
+        
+        // Add Safari-specific fixes to ensure the header remains visible
+        chatHeader.style.position = 'fixed';
+        chatHeader.style.top = '0';
+        chatHeader.style.left = '0';
+        chatHeader.style.right = '0';
+        chatHeader.style.zIndex = '1000';
+        
+        // Apply force-render properties to prevent disappearing
+        chatHeader.style.webkitTransform = 'translateZ(0)';
+        chatHeader.style.transform = 'translateZ(0)';
+        
+        // Log header fix applied
+        console.log('Chat header visibility fix applied');
     }
-}, { passive: true }); // Passive for better performance
-loginForm.addEventListener('submit', handleLogin);
+}
+// Use both click and submit events for more reliable login handling
+loginForm.addEventListener('submit', function(e) {
+    e.preventDefault(); // Prevent the default form submission
+    e.stopPropagation(); // Stop event propagation
+    handleLogin(e); // Call our login handler
+    return false; // Extra safety for older browsers
+});
+
+// Also handle the login button click directly for extra reliability
+loginButton.addEventListener('click', function(e) {
+    e.preventDefault();
+    e.stopPropagation();
+    handleLogin(e);
+    return false;
+});
 messageForm.addEventListener('submit', handleSendMessage);
 messageInput.addEventListener('input', handleInputChange);
 clearMemoryBtn.addEventListener('click', () => toggleModal(clearMemoryModal, true));
@@ -66,7 +99,7 @@ logoutBtn.addEventListener('click', handleLogout);
 // ChatGPT-style input elements
 plusButton.addEventListener('click', toggleAttachmentMenu);
 attachButton.addEventListener('click', () => handleAttachment('files'));
-micButton.addEventListener('click', handleVoiceInput);
+// Mic button events are handled in speech-to-text.js
 
 // Attachment options
 document.getElementById('attach-photos').addEventListener('click', () => handleAttachment('photos'));
@@ -157,7 +190,7 @@ function initIOSSafari() {
         
         if (main) {
             // Apply extreme padding for iOS Safari
-            const basePadding = window.navigator.standalone ? 100 : 200;
+            const basePadding = window.navigator.standalone ? 100 : 114;
             main.style.paddingBottom = `calc(${basePadding}px + env(safe-area-inset-bottom, 0px))`;
             
             // Log for debugging
@@ -230,6 +263,11 @@ document.querySelectorAll('.suggestion-btn').forEach(btn => {
 
 // Functions
 function init() {
+    console.log('Initializing app...');
+    
+    // Fix chat header visibility for iOS Safari
+    fixChatHeaderForSafari();
+    
     // Check if user is already logged in (via localStorage)
     const savedUserId = localStorage.getItem('mojiUserId');
     const savedUserToken = localStorage.getItem('mojiUserToken');
@@ -346,8 +384,9 @@ async function loadConversationHistory() {
             let pendingToolMessages = [];
             
             data.messages.forEach(msg => {
-                const content = msg.content;
-                const role = msg.role;
+                const _msg = JSON.parse(msg);
+                const content = _msg.content;
+                const role = _msg.role;
                 
                 // If this is a tool message, collect it for later processing
                 if (role === 'tool' || role === "tool-call" || role === "function") {
@@ -504,10 +543,7 @@ function handleInputChange() {
     }
 }
 
-// Handle voice input button click
-function handleVoiceInput() {
-    alert('Voice input functionality coming soon!');
-}
+// Voice input is now implemented in speech-to-text.js
 
 // Handle attachment options
 function handleAttachment(type) {
@@ -697,11 +733,24 @@ function stopAudio() {
 }
 
 async function handleLogin(e) {
-    e.preventDefault();
+    // Extra safety to prevent form submission
+    if (e) {
+        e.preventDefault();
+        e.stopPropagation();
+    }
+
+    // Prevent multiple submissions
+    if (loginButton.disabled) {
+        return;
+    }
+    
+    // Disable button during login
+    loginButton.disabled = true;
 
     const email = emailInput.value.trim();
     if (!email) {
         showLoginError('Please enter your email');
+        loginButton.disabled = false;
         return;
     }
 
@@ -721,6 +770,9 @@ async function handleLogin(e) {
         const data = await response.json();
 
         if (!response.ok || !data.success) {
+            // Re-enable login button and hide spinner
+            loginButton.disabled = false;
+            loginSpinner.classList.remove('active');
             throw new Error(data.error || 'Authentication failed');
         }
 
@@ -736,9 +788,17 @@ async function handleLogin(e) {
 
         // Change to chat screen
         switchToChatScreen();
+        
+        // Explicitly load conversation history with slight delay to ensure UI is ready
+        setTimeout(() => {
+            loadConversationHistory();
+            console.log('Loading conversation history after login...');
+        }, 100);
 
     } catch (error) {
+        console.error('Login error:', error);
         showLoginError(error.message);
+        loginButton.disabled = false;
     } finally {
         loginSpinner.classList.remove('active');
     }
@@ -747,6 +807,12 @@ async function handleLogin(e) {
 function authenticateUser() {
     // Already have credentials, switch to chat screen
     if (state.userId && state.userToken) {
+        // Force service worker renewal on login
+        if (window.versionManager) {
+            // Tell version manager to check for updates and force renew service worker
+            window.versionManager.renewServiceWorker();
+        }
+        
         switchToChatScreen();
 
         // Load conversation history
@@ -758,6 +824,11 @@ function switchToChatScreen() {
     state.isAuthenticated = true;
     loginScreen.classList.remove('active');
     chatScreen.classList.add('active');
+    
+    // Make sure chat header is fixed for Safari
+    fixChatHeaderForSafari();
+    
+    // Focus on the message input
     messageInput.focus();
 }
 

@@ -35,26 +35,15 @@
     <link rel="manifest" href="/assets/manifest.json">
     
     <!-- Favicon -->
-    <link rel="icon" type="image/png" sizes="32x32" href="/assets/icons/favicon-32x32.png">
-    <link rel="icon" type="image/png" sizes="16x16" href="/assets/icons/favicon-16x16.png">
+    <link rel="icon" type="image/png" sizes="32x32" href="/assets/images/32x32px.png">
     
     <!-- iOS PWA icons -->
-    <link rel="apple-touch-icon" href="/assets/icons/apple-touch-icon-iphone-60x60.png">
-    <link rel="apple-touch-icon" sizes="76x76" href="/assets/icons/apple-touch-icon-ipad-76x76.png">
-    <link rel="apple-touch-icon" sizes="120x120" href="/assets/icons/apple-touch-icon-iphone-retina-120x120.png">
-    <link rel="apple-touch-icon" sizes="152x152" href="/assets/icons/apple-touch-icon-ipad-retina-152x152.png">
-    <link rel="apple-touch-icon" sizes="180x180" href="/assets/icons/apple-touch-icon-180x180.png">
+    <link rel="apple-touch-icon" sizes="180x180" href="/assets/images/180×180px.png">
     
-    <!-- iOS splash screens -->
-    <link rel="apple-touch-startup-image" href="/assets/splash/apple-splash-2048-2732.png" media="(device-width: 1024px) and (device-height: 1366px) and (-webkit-device-pixel-ratio: 2) and (orientation: portrait)">
-    <link rel="apple-touch-startup-image" href="/assets/splash/apple-splash-1668-2388.png" media="(device-width: 834px) and (device-height: 1194px) and (-webkit-device-pixel-ratio: 2) and (orientation: portrait)">
-    <link rel="apple-touch-startup-image" href="/assets/splash/apple-splash-1536-2048.png" media="(device-width: 768px) and (device-height: 1024px) and (-webkit-device-pixel-ratio: 2) and (orientation: portrait)">
-    <link rel="apple-touch-startup-image" href="/assets/splash/apple-splash-1125-2436.png" media="(device-width: 375px) and (device-height: 812px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)">
-    <link rel="apple-touch-startup-image" href="/assets/splash/apple-splash-1242-2688.png" media="(device-width: 414px) and (device-height: 896px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)">
-    <link rel="apple-touch-startup-image" href="/assets/splash/apple-splash-828-1792.png" media="(device-width: 414px) and (device-height: 896px) and (-webkit-device-pixel-ratio: 2) and (orientation: portrait)">
-    <link rel="apple-touch-startup-image" href="/assets/splash/apple-splash-1242-2208.png" media="(device-width: 414px) and (device-height: 736px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)">
-    <link rel="apple-touch-startup-image" href="/assets/splash/apple-splash-750-1334.png" media="(device-width: 375px) and (device-height: 667px) and (-webkit-device-pixel-ratio: 2) and (orientation: portrait)">
-    <link rel="apple-touch-startup-image" href="/assets/splash/apple-splash-640-1136.png" media="(device-width: 320px) and (device-height: 568px) and (-webkit-device-pixel-ratio: 2) and (orientation: portrait)">
+    <!-- iOS splash screens - using only available sizes -->
+    <link rel="apple-touch-startup-image" href="/assets/images/1125×2436px.png" media="(device-width: 375px) and (device-height: 812px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)">
+    <link rel="apple-touch-startup-image" href="/assets/images/1242×2688px.png" media="(device-width: 414px) and (device-height: 896px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)">
+    <link rel="apple-touch-startup-image" href="/assets/images/750×1334px.png" media="(device-width: 375px) and (device-height: 667px) and (-webkit-device-pixel-ratio: 2) and (orientation: portrait)">
 
 </head>
 <body>
@@ -244,7 +233,11 @@
         </div>
     </div>
 
+    <!-- Load click-fix.js early to fix button interactions -->
+    <script src="/assets/click-fix.js"></script>
+    
     <script src="/assets/app.js"></script>
+    <script src="/assets/speech-to-text.js"></script>
     <script src="/assets/pwa-install.js"></script>
     <script src="/assets/version-manager.js"></script>
     
