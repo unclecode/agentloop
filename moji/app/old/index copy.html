@@ -1,0 +1,756 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Moji Assistant</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
+    <link rel="stylesheet" href="/assets/app.css">
+    <!-- Marked.js for Markdown rendering -->
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Poppins:wght@400;500;600&display=swap" rel="stylesheet">
+    <!-- Animation libraries -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/animate.css/4.1.1/animate.min.css"/>
+    <script src="https://unpkg.com/@lottiefiles/lottie-player@latest/dist/lottie-player.js"></script>
+    <!-- Particles.js for background effects -->
+    <script src="https://cdn.jsdelivr.net/particles.js/2.0.0/particles.min.js"></script>
+    <style>
+        /* Ultra-modern glassy theme */
+        :root {
+            /* Core colors */
+            --bg-color: rgba(10, 14, 25, 0.85);
+            --text-color: #f8f9ff;
+            --border-color: rgba(130, 160, 240, 0.2);
+            --accent-color: #4a9cf6;
+            --accent-glow: rgba(74, 156, 246, 0.5);
+            --hover-color: rgba(99, 123, 199, 0.25);
+            
+            /* UI Element backgrounds */
+            --header-bg: rgba(15, 20, 35, 0.5);
+            --menu-bg: rgba(15, 22, 40, 0.7);
+            --switch-off-bg: rgba(70, 80, 120, 0.5);
+            --button-color: #f0f0f0;
+            
+            /* Message backgrounds */
+            --message-bg-user: rgba(38, 86, 190, 0.6);
+            --message-bg-assistant: rgba(20, 30, 55, 0.6);
+            --welcome-bg: rgba(20, 30, 55, 0.7);
+            
+            /* Input elements */
+            --input-bg: rgba(25, 35, 65, 0.4);
+            --input-border: rgba(130, 160, 240, 0.2);
+            --input-text: #f0f0f0;
+            
+            /* Modal & dialogs */
+            --modal-bg: rgba(15, 22, 40, 0.8);
+            --modal-overlay: rgba(5, 10, 20, 0.7);
+            
+            /* Glow & effects */
+            --blue-glow: 0 0 20px rgba(74, 156, 246, 0.6);
+            --purple-glow: 0 0 15px rgba(120, 80, 255, 0.6);
+            --glass-highlight: rgba(255, 255, 255, 0.1);
+            --glass-reflection: linear-gradient(120deg, rgba(255,255,255,0.15) 10%, rgba(255,255,255,0) 70%);
+            
+            /* Animation durations */
+            --fast-transition: 0.2s;
+            --normal-transition: 0.3s;
+            --slow-transition: 0.5s;
+        }
+        
+        body {
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            font-family: 'Inter', sans-serif;
+            background-image: linear-gradient(135deg, #0a1017, #142340);
+            position: relative;
+            overflow: hidden;
+        }
+        
+        body::before {
+            content: "";
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: 
+                radial-gradient(circle at 20% 20%, rgba(57, 131, 255, 0.1), transparent 40%),
+                radial-gradient(circle at 80% 80%, rgba(120, 80, 255, 0.1), transparent 40%);
+            pointer-events: none;
+            z-index: -1;
+        }
+        
+        /* Ultra Glass Effect */
+        .glass-morphism {
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            background-color: rgba(20, 30, 55, 0.5);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .glass-morphism::before {
+            content: "";
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: var(--glass-reflection);
+            pointer-events: none;
+            z-index: 1;
+        }
+        
+        /* Apply glass effect to elements */
+        .login-container, 
+        .chat-header, 
+        .message, 
+        .welcome-message, 
+        .chat-input-container .input-group,
+        .settings-menu,
+        .modal-content,
+        .suggestion-btn,
+        .tools-wrapper {
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .login-container::before, 
+        .chat-header::before, 
+        .message::before, 
+        .welcome-message::before, 
+        .chat-input-container .input-group::before,
+        .settings-menu::before,
+        .modal-content::before,
+        .suggestion-btn::before,
+        .tools-wrapper::before {
+            content: "";
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 30%;
+            background: var(--glass-reflection);
+            pointer-events: none;
+            z-index: 1;
+        }
+        
+        .chat-header {
+            background-color: var(--header-bg);
+            border-bottom: 1px solid var(--border-color);
+        }
+        
+        .user-message .message {
+            background-color: var(--message-bg-user);
+            color: var(--text-color);
+        }
+        
+        .assistant-message .message {
+            background-color: var(--message-bg-assistant);
+            color: var(--text-color);
+        }
+        
+        .welcome-message {
+            background-color: var(--welcome-bg);
+            color: var(--text-color);
+            border: 1px solid var(--border-color);
+        }
+        
+        .suggestion-btn {
+            background-color: var(--header-bg);
+            color: var(--text-color);
+            border: 1px solid var(--border-color);
+        }
+        
+        .suggestion-btn:hover {
+            background-color: var(--hover-color);
+        }
+        
+        .chat-input-container {
+            /* background-color: var(--header-bg);
+            border-top: 1px solid var(--border-color); */
+        }
+        
+        #message-input {
+            /* background-color: var(--input-bg); */
+            color: var(--input-text);
+        }
+        
+        #send-button {
+            background-color: var(--accent-color);
+            color: white;
+        }
+        
+        .modal-content {
+            background-color: var(--modal-bg);
+            color: var(--text-color);
+            border: 1px solid var(--border-color);
+        }
+        
+        textarea {
+            background-color: var(--input-bg);
+            color: var(--input-text);
+            border: 1px solid var(--input-border);
+        }
+        
+        .modal-header {
+            border-bottom: 1px solid var(--border-color);
+        }
+        
+        .modal button {
+            background-color: var(--accent-color);
+            color: white;
+            border: none;
+        }
+        
+        .modal button:hover {
+            background-color: #3a8ce5;
+        }
+        
+        /* Play button styling */
+        .play-button {
+            border: none;
+            background: linear-gradient(135deg, rgba(74, 156, 246, 0.3) 0%, rgba(33, 150, 243, 0.5) 100%);
+            color: var(--button-color);
+            cursor: pointer;
+            padding: 5px;
+            margin-left: 12px;
+            margin-right: 5px;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            outline: none;
+            transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+            box-shadow: 0 5px 20px rgba(0, 0, 0, 0.2);
+            backdrop-filter: blur(15px);
+            -webkit-backdrop-filter: blur(15px);
+            z-index: 50;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            position: relative;
+        }
+        
+        .play-button::before {
+            content: "";
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            border-radius: 50%;
+            background: radial-gradient(circle at 30% 30%, rgba(255,255,255,0.5) 0%, rgba(255,255,255,0) 70%);
+            pointer-events: none;
+        }
+        
+        .play-button:hover {
+            background: linear-gradient(135deg, rgba(74, 156, 246, 0.5) 0%, rgba(33, 150, 243, 0.7) 100%);
+            transform: scale(1.15) translateY(-2px);
+            box-shadow: 0 8px 25px rgba(74, 156, 246, 0.4);
+        }
+        
+        .play-button:active {
+            transform: scale(0.95);
+        }
+        
+        /* Playing state */
+        .play-button.playing {
+            background: linear-gradient(135deg, rgba(74, 156, 246, 0.6) 0%, rgba(33, 150, 243, 0.8) 100%);
+            animation: pulseRing 3s cubic-bezier(0.455, 0.03, 0.515, 0.955) infinite;
+        }
+        
+        .play-button.playing i {
+            animation: pulsate 2s ease-out infinite;
+        }
+        
+        @keyframes pulseRing {
+            0% {
+                box-shadow: 0 0 0 0 rgba(74, 156, 246, 0.7);
+            }
+            70% {
+                box-shadow: 0 0 0 15px rgba(74, 156, 246, 0);
+            }
+            100% {
+                box-shadow: 0 0 0 0 rgba(74, 156, 246, 0);
+            }
+        }
+        
+        @keyframes pulsate {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.1); }
+            100% { transform: scale(1); }
+        }
+        
+        /* Audio border animation */
+        .message.playing {
+            animation: borderPulse 2s infinite;
+        }
+        
+        @keyframes borderPulse {
+            0% { border-color: rgba(74, 156, 246, 0.3); box-shadow: 0 0 5px rgba(74, 156, 246, 0.3); }
+            50% { border-color: rgba(74, 156, 246, 0.8); box-shadow: 0 0 15px rgba(74, 156, 246, 0.5); }
+            100% { border-color: rgba(74, 156, 246, 0.3); box-shadow: 0 0 5px rgba(74, 156, 246, 0.3); }
+        }
+        
+        .assistant-message .message {
+            position: relative;
+        }
+        
+        .message-controls {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            display: flex;
+            gap: 8px;
+            z-index: 100;
+        }
+        
+        /* Settings dropdown styling */
+        .settings-dropdown {
+            position: relative;
+            margin-right: 5px;
+        }
+        
+        .settings-toggle {
+            background: transparent;
+            border: none;
+            color: var(--button-color);
+            cursor: pointer;
+            font-size: 20px;
+            padding: 5px;
+            width: 36px;
+            height: 36px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 5px;
+        }
+        
+        .settings-toggle:hover {
+            background: var(--hover-color);
+        }
+        
+        .settings-menu {
+            display: none;
+            position: absolute;
+            right: 0;
+            top: 100%;
+            background: var(--menu-bg);
+            box-shadow: 0 5px 25px rgba(0,0,0,0.4);
+            border-radius: 16px;
+            padding: 15px;
+            z-index: 100;
+            width: 250px;
+            margin-top: 10px;
+            backdrop-filter: blur(15px);
+            -webkit-backdrop-filter: blur(15px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            transform-origin: top right;
+            opacity: 0;
+            transform: scale(0.95);
+            transition: opacity 0.3s ease, transform 0.3s cubic-bezier(0.2, 0.8, 0.2, 1);
+        }
+        
+        .settings-menu.active {
+            display: block;
+            opacity: 1;
+            transform: scale(1);
+        }
+        
+        /* Menu header */
+        .settings-menu-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+            padding-bottom: 10px;
+            border-bottom: 1px solid var(--border-color);
+            font-weight: bold;
+            color: var(--text-color);
+        }
+        
+        .settings-menu-close {
+            background: transparent;
+            border: none;
+            font-size: 20px;
+            cursor: pointer;
+            color: var(--button-color);
+        }
+        
+        /* Toggle container styles */
+        .toggle-container {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            width: 100%;
+            margin: 15px 0;
+            padding-bottom: 15px;
+            border-bottom: 1px solid var(--border-color);
+        }
+        
+        .toggle-container:last-child {
+            border-bottom: none;
+            padding-bottom: 0;
+        }
+        
+        .toggle-label {
+            display: inline-block;
+            font-weight: 500;
+            color: var(--text-color);
+        }
+        
+        /* Compact header actions */
+        .header-actions {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .header-actions button {
+            margin-left: 0;
+            width: 36px;
+            height: 36px;
+            padding: 0;
+            background: transparent;
+            border: none;
+            color: var(--button-color);
+            border-radius: 5px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+        }
+        
+        .header-actions button:hover {
+            background: var(--hover-color);
+        }
+        
+        /* Switch styling for dark theme */
+        .switch {
+            position: relative;
+            display: inline-block;
+            width: 44px;
+            height: 24px;
+        }
+        
+        .switch input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+        
+        .slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: var(--switch-off-bg);
+            transition: .4s;
+        }
+        
+        .slider:before {
+            position: absolute;
+            content: "";
+            height: 18px;
+            width: 18px;
+            left: 3px;
+            bottom: 3px;
+            background-color: white;
+            transition: .4s;
+        }
+        
+        input:checked + .slider {
+            background-color: var(--accent-color);
+        }
+        
+        input:focus + .slider {
+            box-shadow: 0 0 1px var(--accent-color);
+        }
+        
+        input:checked + .slider:before {
+            transform: translateX(20px);
+        }
+        
+        .slider.round {
+            border-radius: 24px;
+        }
+        
+        .slider.round:before {
+            border-radius: 50%;
+        }
+    </style>
+</head>
+<body>
+    <!-- Particles background -->
+    <div id="particles-js" class="particles-container"></div>
+    
+    <div class="app-container">
+        <!-- Login Screen -->
+        <div id="login-screen" class="screen active">
+            <div class="login-container">
+                <div class="logo">
+                    <lottie-player src="https://assets5.lottiefiles.com/packages/lf20_khzniaya.json" background="transparent" speed="1" style="width: 60px; height: 60px;" loop autoplay></lottie-player>
+                    <h1>Moji Assistant</h1>
+                </div>
+                <p class="subtitle">Your AI movie companion</p>
+                
+                <form id="login-form">
+                    <div class="input-group">
+                        <input type="email" id="email" placeholder="Enter your email" required>
+                        <button type="submit" id="login-button">
+                            <i class="fas fa-arrow-right"></i>
+                        </button>
+                    </div>
+                    <div id="login-error" class="error-message"></div>
+                </form>
+                
+                <div class="login-spinner" id="login-spinner">
+                    <i class="fas fa-spinner fa-spin"></i>
+                    <span>Authenticating...</span>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Chat Screen -->
+        <div id="chat-screen" class="screen">
+            <div class="chat-header">
+                <div class="user-info">
+                    <i class="fas fa-film"></i>
+                    <h2>Moji Assistant</h2>
+                </div>
+                <div class="header-actions">
+                    <!-- Settings dropdown -->
+                    <div class="settings-dropdown">
+                        <button class="settings-toggle" id="settings-toggle" title="Settings">
+                            <i class="fas fa-cog"></i>
+                        </button>
+                        <div class="settings-menu" id="settings-menu">
+                            <div class="settings-menu-header">
+                                <span>Settings</span>
+                                <button class="settings-menu-close" id="settings-close-btn">&times;</button>
+                            </div>
+                            <div class="toggle-container" title="Toggle streaming mode">
+                                <span class="toggle-label">Stream Responses</span>
+                                <label class="switch">
+                                    <input type="checkbox" id="stream-toggle" checked>
+                                    <span class="slider round"></span>
+                                </label>
+                            </div>
+                            <div class="toggle-container" title="Toggle voice output">
+                                <span class="toggle-label">Voice Output</span>
+                                <label class="switch">
+                                    <input type="checkbox" id="audio-toggle">
+                                    <span class="slider round"></span>
+                                </label>
+                            </div>
+                            <div id="autoplay-container" class="toggle-container" title="Toggle auto-playing voice" style="display: none;">
+                                <span class="toggle-label">Auto-play Voice</span>
+                                <label class="switch">
+                                    <input type="checkbox" id="autoplay-toggle" checked>
+                                    <span class="slider round"></span>
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Action buttons -->
+                    <button id="clear-memory-btn" title="Clear conversation memory">
+                        <i class="fas fa-trash"></i>
+                    </button>
+                    <button id="report-bug-btn" title="Report a bug">
+                        <i class="fas fa-bug"></i>
+                    </button>
+                    <button id="logout-btn" title="Logout">
+                        <i class="fas fa-sign-out-alt"></i>
+                    </button>
+                </div>
+            </div>
+            
+            <main>
+                <div class="chat-messages" id="chat-messages">
+                    <div class="welcome-message">
+                        <h3>Welcome to Moji Assistant!</h3>
+                        <p>I'm your movie companion. Ask me about movies, recommendations, or manage your favorite lists.</p>
+                        <div class="welcome-suggestions">
+                            <button class="suggestion-btn" data-message="What movies are popular right now?">Popular movies</button>
+                            <button class="suggestion-btn" data-message="Create a list of sci-fi movies">Create a list</button>
+                            <button class="suggestion-btn" data-message="Recommend me a comedy movie">Comedy recommendation</button>
+                        </div>
+                    </div>
+                </div>
+            </main>
+            
+            <div class="chat-input-container">
+                <form id="message-form">
+                    <div class="input-group">
+                        <input type="text" id="message-input" placeholder="Type your message..." autocomplete="off">
+                        <button type="submit" id="send-button" disabled>
+                            <i class="fas fa-arrow-up"></i>
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+        
+        <!-- Modal for Bug Reports -->
+        <div id="bug-modal" class="modal">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h3>Report a Bug</h3>
+                    <button id="close-modal-btn">&times;</button>
+                </div>
+                <div class="modal-body">
+                    <p>Please describe the issue you're experiencing:</p>
+                    <textarea id="bug-description" rows="4" placeholder="Describe what happened..."></textarea>
+                    
+                    <div class="modal-actions">
+                        <button id="submit-bug-btn">Submit Report</button>
+                        <button id="cancel-bug-btn">Cancel</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Modal for Memory Clear Confirmation -->
+        <div id="clear-memory-modal" class="modal">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h3>Clear Conversation</h3>
+                    <button id="close-clear-modal-btn">&times;</button>
+                </div>
+                <div class="modal-body">
+                    <p>Are you sure you want to clear your conversation history?</p>
+                    
+                    <div class="modal-actions">
+                        <button id="confirm-clear-btn">Yes, Clear It</button>
+                        <button id="cancel-clear-btn">Cancel</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="/assets/app.js"></script>
+    
+    <!-- Initialize particles.js -->
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            particlesJS('particles-js', {
+                "particles": {
+                    "number": {
+                        "value": 30,
+                        "density": {
+                            "enable": true,
+                            "value_area": 800
+                        }
+                    },
+                    "color": {
+                        "value": "#4a9cf6"
+                    },
+                    "shape": {
+                        "type": "circle",
+                        "stroke": {
+                            "width": 0,
+                            "color": "#000000"
+                        },
+                        "polygon": {
+                            "nb_sides": 5
+                        }
+                    },
+                    "opacity": {
+                        "value": 0.1,
+                        "random": true,
+                        "anim": {
+                            "enable": true,
+                            "speed": 0.2,
+                            "opacity_min": 0.05,
+                            "sync": false
+                        }
+                    },
+                    "size": {
+                        "value": 5,
+                        "random": true,
+                        "anim": {
+                            "enable": true,
+                            "speed": 1,
+                            "size_min": 1,
+                            "sync": false
+                        }
+                    },
+                    "line_linked": {
+                        "enable": true,
+                        "distance": 200,
+                        "color": "#4a9cf6",
+                        "opacity": 0.1,
+                        "width": 1
+                    },
+                    "move": {
+                        "enable": true,
+                        "speed": 0.3,
+                        "direction": "none",
+                        "random": true,
+                        "straight": false,
+                        "out_mode": "out",
+                        "bounce": false,
+                        "attract": {
+                            "enable": false,
+                            "rotateX": 600,
+                            "rotateY": 1200
+                        }
+                    }
+                },
+                "interactivity": {
+                    "detect_on": "canvas",
+                    "events": {
+                        "onhover": {
+                            "enable": true,
+                            "mode": "bubble"
+                        },
+                        "onclick": {
+                            "enable": true,
+                            "mode": "push"
+                        },
+                        "resize": true
+                    },
+                    "modes": {
+                        "grab": {
+                            "distance": 400,
+                            "line_linked": {
+                                "opacity": 1
+                            }
+                        },
+                        "bubble": {
+                            "distance": 100,
+                            "size": 5,
+                            "duration": 2,
+                            "opacity": 0.2,
+                            "speed": 3
+                        },
+                        "repulse": {
+                            "distance": 100,
+                            "duration": 0.4
+                        },
+                        "push": {
+                            "particles_nb": 4
+                        },
+                        "remove": {
+                            "particles_nb": 2
+                        }
+                    }
+                },
+                "retina_detect": true
+            });
+        });
+    </script>
+</body>
+</html>

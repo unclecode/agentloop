@@ -238,11 +238,11 @@ async function loadConversationHistory() {
                             } catch (jsonError) {
                                 // If JSON parsing fails, treat as regular message
                                 console.log('Failed to parse message as JSON:', jsonError);
-                                currentAssistantMessage = addMessage(content, role);
+                                currentAssistantMessage = addMessage(content, role, true);
                             }
                         } else {
                             // Regular text message
-                            currentAssistantMessage = addMessage(content, role);
+                            currentAssistantMessage = addMessage(content, role, true);
                         }
                     } catch (e) {
                         // If any error occurs, treat as regular message
@@ -250,7 +250,8 @@ async function loadConversationHistory() {
                         currentAssistantMessage = addMessage(content, role);
                     }
                 } else if (role === 'user') {
-                    addMessage(content, role);
+                    // addMessage(content, role, is_loading_history=true);
+                    addMessage(content, role, true);
                     currentAssistantMessage = null; // Reset when user message encountered
                 } else {
                     // Skip other message types that aren't user, assistant, or tool
@@ -352,6 +353,12 @@ function toggleAutoplay(e) {
 
 function playTextAsSpeech(text, messageId) {
     if (!state.audioEnabled) return;
+    
+    // Check if audio is already playing for this message
+    if (state.currentAudio && state.currentAudio.messageId === messageId) {
+        stopAudio();
+        return;
+    }
     
     // Stop any currently playing audio
     stopAudio();
@@ -1575,7 +1582,7 @@ function createToolExecutionElement(content) {
     return toolDiv;
 }
 
-function addMessage(content, role) {
+function addMessage(content, role, is_loading_history = false) {
     const messageId = Date.now();
     const messageContainer = document.createElement('div');
     messageContainer.className = `message-container ${role}-message`;
@@ -1610,7 +1617,7 @@ function addMessage(content, role) {
         messageDiv.appendChild(controlsDiv);
         
         // Auto-play if audio is enabled
-        if (state.audioEnabled) {
+        if (state.audioEnabled && state.autoplayEnabled && !is_loading_history) {
             setTimeout(() => {
                 playTextAsSpeech(content, messageId);
             }, 100);

@@ -1,0 +1,146 @@
+/* Base styling for all containers */
+.container {
+    position: relative;
+    width: 200px;
+    height: 200px;
+    background-color: #121928;
+    margin: 30px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+  
+  /* Effect 1: Animated Corner Border */
+  .border-effect-1 {
+    border-radius: 4px;
+  }
+  
+  .border-effect-1::before,
+  .border-effect-1::after {
+    content: '';
+    position: absolute;
+    width: 100%;
+    height: 100%;
+    border-radius: inherit;
+    z-index: -1;
+  }
+  
+  .border-effect-1::before {
+    background: linear-gradient(90deg, #00f7ff, transparent 40%);
+    animation: rotate-border 3s linear infinite;
+  }
+  
+  .border-effect-1::after {
+    background: linear-gradient(90deg, transparent 60%, #ff0084);
+    animation: rotate-border 3s linear infinite reverse;
+  }
+  
+  @keyframes rotate-border {
+    0% {
+      transform: rotate(0deg);
+    }
+    100% {
+      transform: rotate(360deg);
+    }
+  }
+  
+  /* Effect 2: Circular Border Animation */
+  .border-effect-2 {
+    border-radius: 50%;
+  }
+  
+  .border-effect-2::before {
+    content: '';
+    position: absolute;
+    top: -3px;
+    right: -3px;
+    bottom: -3px;
+    left: -3px;
+    border: 3px solid transparent;
+    border-radius: inherit;
+    background: conic-gradient(
+      transparent 0deg,
+      transparent 45deg,
+      #00f7ff 90deg,
+      #00f7ff 180deg,
+      transparent 270deg,
+      transparent 360deg
+    );
+    animation: rotate-conic 3s linear infinite;
+  }
+  
+  @keyframes rotate-conic {
+    0% {
+      transform: rotate(0deg);
+    }
+    100% {
+      transform: rotate(360deg);
+    }
+  }
+  
+  /* Effect 3: Rounded Rectangle with Moving Border */
+  .border-effect-3 {
+    border-radius: 16px;
+  }
+  
+  .border-effect-3::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    padding: 3px;
+    background: linear-gradient(
+      120deg,
+      transparent,
+      transparent 25%,
+      #00f7ff 35%,
+      #00f7ff 65%,
+      transparent 75%,
+      transparent
+    );
+    -webkit-mask: 
+      linear-gradient(#fff 0 0) content-box, 
+      linear-gradient(#fff 0 0);
+    -webkit-mask-composite: xor;
+    mask-composite: exclude;
+    animation: border-slide 3s linear infinite;
+    background-size: 400% 100%;
+  }
+  
+  @keyframes border-slide {
+    0% {
+      background-position: 100% 0;
+    }
+    100% {
+      background-position: 0% 0;
+    }
+  }
+  
+  /* Loading bar effect (as seen in first image) */
+  .loading-bar {
+    position: relative;
+    width: 100%;
+    height: 3px;
+    background-color: #121928;
+    overflow: hidden;
+  }
+  
+  .loading-bar::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    bottom: 0;
+    height: 100%;
+    width: 25%;
+    background: linear-gradient(90deg, #ff0084, #00f7ff);
+    animation: loading 2s linear infinite;
+  }
+  
+  @keyframes loading {
+    0% {
+      left: -25%;
+    }
+    100% {
+      left: 100%;
+    }
+  }

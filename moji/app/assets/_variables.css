@@ -1,0 +1,32 @@
+/* _variables.css */
+:root {
+    /* Ultra-modern glassy theme colors */
+    --primary-color: #64b5f6;
+    --secondary-color: #2196f3;
+    --accent-color: #4a9cf6;
+    --accent-glow: rgba(74, 156, 246, 0.5);
+    --highlight-purple: #9c64f6;
+    --highlight-purple-glow: rgba(156, 100, 246, 0.5);
+
+    /* Background & containers */
+    --background-color: #0a0e17;
+    --container-bg: rgba(17, 23, 35, 0.7);
+    --text-color: #f0f6ff;
+    --border-color: rgba(99, 123, 199, 0.25);
+    --highlight-color: #283593;
+
+    /* Feedback colors */
+    --error-color: #f44336;
+    --success-color: #4caf50;
+
+    /* UI components */
+    --tool-bg-color: rgba(20, 28, 45, 0.7);
+    --tool-border-color: rgba(99, 123, 199, 0.25);
+    --message-user-bg: rgba(36, 84, 190, 0.6);
+    --message-assistant-bg: rgba(20, 30, 55, 0.6);
+    --input-bg: rgba(25, 35, 65, 0.4);
+
+    /* Glow effects */
+    --blue-glow: 0 0 20px rgba(74, 156, 246, 0.6);
+    --purple-glow: 0 0 15px rgba(156, 100, 246, 0.6);
+}

@@ -1,0 +1,164 @@
+/* _media_queries.css */
+@media (max-width: 768px) {
+    body {
+        font-size: 15px;
+    }
+
+    .message {
+        max-width: 85%;
+        padding: 0.8rem 1rem;
+    }
+
+    .login-container {
+        width: 92%;
+        padding: 1.5rem;
+    }
+
+    .logo i {
+        font-size: 2rem;
+    }
+
+    .logo h1 {
+        font-size: 1.5rem;
+    }
+
+    .chat-header {
+        padding: 0.7rem 1rem;
+        height: 55px;
+    }
+
+    .user-info h2 {
+        font-size: 1.1rem;
+    }
+
+    .header-actions {
+        gap: 0.5rem;
+    }
+
+    .header-actions button {
+        width: 32px;
+        height: 32px;
+        font-size: 1rem;
+    }
+
+    .toggle-label {
+        display: none; /* Hide label on small screens */
+    }
+
+    main {
+        padding-top: 0px;
+        padding-bottom: 105px;
+    }
+
+    .chat-messages {
+        padding: 0.8rem;
+    }
+
+    .welcome-message {
+        padding: 1.2rem;
+        margin-bottom: 1rem;
+    }
+
+    .welcome-message h3 {
+        font-size: 1.1rem;
+        margin-bottom: 0.6rem;
+    }
+
+    .welcome-message p {
+        margin-bottom: 1rem;
+    }
+
+    .welcome-suggestions {
+        flex-direction: column;
+        gap: 0.5rem;
+    }
+
+    .suggestion-btn {
+        width: 100%;
+        padding: 0.7rem;
+        font-size: 0.9rem;
+    }
+
+    .chat-input-container {
+        padding: 1rem 0.8rem 2rem;
+    }
+
+    .chat-input-container .input-group
+    {
+        padding: 0.4rem 0.5rem 0.4rem .5rem;
+    }
+    .chat-input-container .input-group input {
+        padding: 0.7rem;
+        margin-top:3px
+    }
+
+
+    .tool-execution {
+        padding: 0.8rem;
+        font-size: 0.8rem;
+        margin: 0.6rem 0;
+    }
+
+    .tool-execution pre {
+        padding: 0.4rem;
+    }
+
+    .modal-content {
+        width: 95%;
+    }
+
+    .modal-header {
+        padding: 1rem;
+    }
+
+    .modal-body {
+        padding: 1rem;
+    }
+
+    .modal-actions button {
+        padding: 0.7rem 1.2rem;
+        font-size: 0.95rem;
+    }
+
+    /* Responsive UI for JSON views */
+    .movie-grid {
+        grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+        gap: 10px;
+    }
+
+    .movie-poster {
+        height: 140px;
+    }
+
+    .movie-title {
+        font-size: 0.85rem;
+    }
+
+    .related-movies-list {
+        grid-template-columns: 1fr;
+    }
+
+    .toggle-view-btn {
+        font-size: 0.75rem;
+        padding: 4px 8px;
+    }
+
+    .video-thumbnail {
+        max-height: 180px;
+    }
+
+    .play-button {
+        width: 50px;
+        height: 50px;
+        font-size: 1.2rem;
+    }
+
+    .json-response {
+        font-size: 0.75rem;
+        padding: 8px;
+    }
+
+    .message p:first-child {
+        padding-right: 30px;
+    }
+}

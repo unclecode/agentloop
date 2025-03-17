@@ -1,0 +1,156 @@
+/* _tools.css */
+.tools-wrapper {
+    background-color: var(--tool-bg-color);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 16px;
+    margin-bottom: 1rem;
+    font-family: 'Menlo', 'Monaco', 'Courier New', monospace;
+    font-size: 0.85rem;
+    overflow: hidden;
+    transition: all 0.3s cubic-bezier(0.2, 0.8, 0.2, 1);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    box-shadow: 0 5px 25px rgba(0, 0, 0, 0.25);
+}
+
+.tools-toggle-header {
+    padding: 0.8rem 1rem;
+    display: flex;
+    align-items: center;
+    cursor: pointer;
+    background-color: rgba(0, 0, 0, 0.2);
+    color: rgba(224, 224, 224, 0.9);
+    font-size: 0.9rem;
+    font-weight: 600;
+    user-select: none;
+}
+
+.tools-toggle-header i {
+    margin-right: 0.7rem;
+    color: var(--primary-color);
+}
+
+.tools-toggle-header .tools-count {
+    margin-left: 0.5rem;
+    font-size: 0.8rem;
+    opacity: 0.8;
+}
+
+.tools-container {
+    max-height: 400px;
+    overflow-y: auto;
+    transition: max-height 0.3s ease;
+}
+
+.tools-wrapper.collapsed .tools-container {
+    max-height: 0;
+    overflow: hidden;
+}
+
+.tool-execution {
+    padding: 1rem;
+    border-bottom: 1px solid var(--tool-border-color);
+    font-size: 0.85rem;
+}
+
+.tool-execution:last-child {
+    border-bottom: none;
+}
+
+.tool-execution pre {
+    white-space: pre-wrap;
+    overflow-x: auto;
+    margin: 0.5rem 0;
+    padding: 0.5rem;
+    background-color: rgba(0, 0, 0, 0.2);
+    border-radius: 6px;
+    max-height: 200px;
+    overflow-y: auto;
+    font-family: 'Courier New', Courier, monospace;
+}
+
+.tool-header {
+    display: flex;
+    align-items: center;
+    margin-bottom: 0.6rem;
+    color: rgba(224, 224, 224, 0.8);
+    font-size: 0.85rem;
+    font-weight: 600;
+}
+
+.tool-header i {
+    margin-right: 0.7rem;
+    color: var(--primary-color);
+}
+
+.tool-args {
+    font-size: 0.8rem;
+    color: rgba(224, 224, 224, 0.7);
+}
+
+.tool-result {
+    border-top: 1px dashed var(--tool-border-color);
+    margin-top: 0.8rem;
+    padding-top: 0.8rem;
+}
+
+/* Styled tool result elements */
+.result-header {
+    font-weight: 600;
+    margin-bottom: 0.5rem;
+    color: var(--text-color);
+    font-size: 0.9rem;
+}
+
+.result-list {
+    list-style: none;
+    padding: 0;
+    margin: 0.5rem 0;
+}
+
+.result-list li {
+    padding: 0.5rem;
+    background-color: rgba(0, 0, 0, 0.2);
+    margin-bottom: 0.3rem;
+    border-radius: 4px;
+    font-size: 0.9rem;
+    transition: all 0.2s ease;
+}
+
+.result-list li:hover {
+    background-color: rgba(100, 181, 246, 0.2);
+    transform: translateX(2px);
+}
+
+.result-list li[data-id]:before {
+    content: "•";
+    color: var(--primary-color);
+    display: inline-block;
+    width: 1em;
+    margin-right: 0.3rem;
+}
+
+/* Tool transition effects */
+.tools-wrapper {
+    transform-origin: top;
+    animation: fadeIn 0.3s ease;
+}
+
+.tools-wrapper.collapsed {
+    transform-origin: top;
+    transition: all 0.3s ease;
+}
+
+.tools-wrapper.collapsed .tools-toggle-header:after {
+    content: "▼";
+    font-size: 0.7rem;
+    margin-left: auto;
+    transition: transform 0.3s ease;
+}
+
+.tools-wrapper:not(.collapsed) .tools-toggle-header:after {
+    content: "▲";
+    font-size: 0.7rem;
+    margin-left: auto;
+    transition: transform 0.3s ease;
+}
