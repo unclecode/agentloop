@@ -932,7 +932,7 @@ class TMDBService:
             list: List of search results corresponding to the input list.
         """
         def update_items_type(items):
-            type_mapping = {'m': 'movie', 'v': 'tv-series', 'c': 'cartoon', 'a': 'anime', 'd': 'documentary', 's': 'short-film', 't': 'tv'}
+            type_mapping = {'m': 'movie', 'v': 'tv-series', 'c': 'cartoon', 'a': 'anime', 'd': 'documentary', 's': 'short-film', 't': 'tv-series'}
             try:
                 for item in items:
                     if 'type' in item and item.get('type') in type_mapping:

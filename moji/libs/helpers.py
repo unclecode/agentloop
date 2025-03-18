@@ -6,7 +6,7 @@ import json
 
 def update_movie_response(movies):
     key_mapping = {'n': 'name', 'y': 'year', 't': 'type', 'l': 'original_language'}
-    type_mapping = {'m': 'movie', 'v': 'tv-series', 'c': 'cartoon', 'a': 'anime', 'd': 'documentary', 's': 'short-film', 't': 'tv'}
+    type_mapping = {'m': 'movie', 'v': 'tv-series', 'c': 'cartoon', 'a': 'anime', 'd': 'documentary', 's': 'short-film', 't': 'tv-series'}
     try:
         if type(movies) == str:
             movies = json.loads(movies)

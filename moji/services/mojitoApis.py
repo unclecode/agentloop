@@ -121,8 +121,9 @@ class MojitoAPIs:
         # print(self.headers)
         try:
             request_data = {
-                "type": "add_to_big_five_list",
+                "type": "add_to_favorite_list",
                 "data": {
+                    "list_id": "BIG_FIVE",
                     "movies": movies,
                 }
             }
