@@ -456,7 +456,7 @@ def add_to_big_five_list(
     **context  # Catches user_id and user_token from context
 ) -> str:
     """
-    Add movies or TV series to the user's Big Five list (limited to 5 total movies or TV series).
+    Add movies or TV series to the user's Big Five list.
     
     Args:
         movies: List of movie or TV series objects to add to the Big Five list
@@ -658,7 +658,7 @@ ADD_TO_BIG_FIVE_SCHEMA = {
     "type": "function",
     "function": {
         "name": "add_to_big_five_list",
-        "description": "Add movies or TV series to the user's Big Five list (limited to 5 total movies or TV series)",
+        "description": "Add movies or TV series to the user's Big Five list",
         "parameters": {
             "type": "object",
             "properties": {
@@ -676,7 +676,7 @@ ADD_TO_BIG_FIVE_SCHEMA = {
                         },
                         "required": ["id", "name", "year", "type"]
                     },
-                    "description": "List of movie or TV series objects to add to the Big Five list (maximum 5 items)"
+                    "description": "List of movie or TV series objects to add to the Big Five list"
                 }
             },
             "required": ["movies"]
